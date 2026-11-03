@@ -135,7 +135,9 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
             )
 
 
-def serve_live(experiment_path: Path, playback_speed: float = 0.05, force_scale: float = 5.0) -> str:
+def serve_live(
+    experiment_path: Path, playback_speed: float = 0.05, force_scale: float = 5.0
+) -> str:
     """Start MeshCat and animate the wingbeat in a loop. Blocks (Ctrl-C stops).
 
     playback_speed < 1 slows the wingbeat down for viewing.
