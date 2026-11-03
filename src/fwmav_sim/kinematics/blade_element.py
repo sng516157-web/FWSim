@@ -27,7 +27,6 @@ from fwmav_sim.core.transforms import R_B_SP, R_W_B, Rx, Ry, Rz, skew
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics, WingKinematicState, wing_state
 from fwmav_sim.vehicle.schema import WingSpec
 
-
 # --- planform geometry --------------------------------------------------------
 
 def chord_at(wing: WingSpec, s: float) -> float:

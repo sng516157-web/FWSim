@@ -10,7 +10,6 @@ from __future__ import annotations
 import numpy as np
 
 from fwmav_sim.kinematics.blade_element import (
-    cumulative_area,
     discretize,
     element_state,
     planform_area,
