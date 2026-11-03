@@ -62,22 +62,26 @@ def _equilibrium_shifted(p: SuspendedPendulumParams) -> SuspendedPendulumParams:
 
 def test_passive_pendulum_frequency():
     """Small-oscillation frequency vs omega = sqrt(m g d_cm / I_pivot),
-    relative error < 1e-6."""
+    relative error < 1e-6.
+
+    Measurement: solver event detection on downward zero crossings (accurate
+    to solver tolerance); release angle 1e-3 rad keeps the finite-amplitude
+    period correction (phi0^2/16 = 6.25e-8) below the tolerance.
+    """
     p = _equilibrium_shifted(_P)
     pend = SuspendedPendulum(p)
     omega_expected = pendulum_small_oscillation_frequency(p)
 
-    phi0 = 0.01  # small angle
-    t_end = 10.0
+    def zero_crossing(t, y):
+        return y[0]
+
+    zero_crossing.direction = -1  # same-direction crossings: full period
     sol = solve_ivp(
-        lambda t, y: pend.rhs(y, t), (0.0, t_end), [phi0, 0.0, 0.0, 0.0],
+        lambda t, y: pend.rhs(y, t), (0.0, 10.0), [0.001, 0.0, 0.0, 0.0],
         method="DOP853", rtol=1e-9, atol=1e-12, dense_output=True,
+        events=zero_crossing,
     )
-    t = np.linspace(0, t_end, 20001)
-    phi = sol.sol(t)[0]
-    # frequency from zero crossings of (phi - mean)
-    crossings = np.nonzero(np.diff(np.sign(phi)))[0]
-    periods = np.diff(t[crossings]) * 2.0
+    periods = np.diff(sol.t_events[0])
     omega_measured = 2 * np.pi / periods.mean()
     assert abs(omega_measured - omega_expected) / omega_expected < 1e-6
 

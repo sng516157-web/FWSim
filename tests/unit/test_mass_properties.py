@@ -108,9 +108,9 @@ def test_inertia_symmetric_positive_definite_random_configs():
         q = _q(rng.uniform(-0.6, 0.6), **{"psi": rng.uniform(-np.pi, np.pi),
                                           "theta": rng.uniform(-1.4, 1.4),
                                           "phi_r": rng.uniform(-np.pi, np.pi)})
-        I = inertia_about_com(q, v)
-        np.testing.assert_allclose(I, I.T, atol=1e-18)
-        assert np.all(np.linalg.eigvalsh(I) > 0)
+        I_mat = inertia_about_com(q, v)
+        np.testing.assert_allclose(I_mat, I_mat.T, atol=1e-18)
+        assert np.all(np.linalg.eigvalsh(I_mat) > 0)
 
 
 def test_joint_limit_clamping():

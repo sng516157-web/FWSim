@@ -205,7 +205,8 @@ def main() -> int:
     free_vel_args = "theta, alpha_abd, theta_d, alpha_abd_d, m_t, m_a, d, l_a"
     parts = [header]
     parts.append(_fmt_matrix("free_M", M_f, free_args,
-                             "Mass matrix M(q) of the free reduced model; q = [x, z, theta, alpha_abd]."))
+                             "Mass matrix M(q) of the free reduced model;"
+                             " q = [x, z, theta, alpha_abd]."))
     parts.append("\n")
     parts.append(_fmt_vector("free_bias", bias_f, free_vel_args,
                              "Velocity-product (Coriolis/centrifugal) vector of the free model."))
@@ -220,10 +221,12 @@ def main() -> int:
     parts.append("\n")
     pend_args = "phi_p, alpha_abd, m_t, m_a, I_t, u_tx, u_tz, j_x, j_z, l_a"
     parts.append(_fmt_matrix("pend_M", M_p, pend_args,
-                             "Mass matrix of the suspended-pendulum model; q_s = [phi_p, alpha_abd]."))
+                             "Mass matrix of the suspended-pendulum model;"
+                             " q_s = [phi_p, alpha_abd]."))
     parts.append("\n")
     parts.append(_fmt_vector("pend_bias", bias_p,
-                             "phi_p, alpha_abd, phi_p_d, alpha_abd_d, m_t, m_a, u_tx, u_tz, j_x, j_z, l_a",
+                             ("phi_p, alpha_abd, phi_p_d, alpha_abd_d, m_t, m_a, "
+                              "u_tx, u_tz, j_x, j_z, l_a"),
                              "Velocity-product vector of the pendulum model."))
     parts.append("\n")
     parts.append(_fmt_vector("pend_G", G_p, pend_args + ", g",

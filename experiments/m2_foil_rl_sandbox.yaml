@@ -1,0 +1,41 @@
+# M2 foil: RL-sandbox dynamics-kernel cross-check (M2 stage file §2.4a).
+#
+# The sandbox's T = k * f linear thrust law is SYNTHETIC (source: estimated) —
+# it is not physics and validates nothing about aerodynamics. It cross-checks
+# the reduced model's kernel (mass/inertia/force-law/lever-arm assembly)
+# against an independently written implementation (reference_rl_flapping.py).
+#
+# Abdomen locked, m_a = 0 (degenerate two-mass limit => single rigid body).
+# Unsteady/noise torque terms disabled (unsteady_rel_amp = 0 equivalent:
+# our model simply omits them).
+name: m2_foil_rl_sandbox
+kind: free_reduced
+
+reduced_params:
+  m_t: 0.05        # kg (sandbox m)
+  m_a: 0.0         # locked, coincident — degenerate single body
+  I_t: 2.0e-4      # kg m^2 (sandbox I)
+  d: 0.0
+  l_a: 0.0
+  lock_abdomen: true
+
+damping:
+  c_lin: 0.05      # N s / m (sandbox lin_damp)
+  c_ang: 0.001     # N m s / rad (sandbox ang_damp)
+  c_a: 0.0
+
+forces:
+  source: synthetic_thrust_law   # T = k_thrust * f, along -z_B at x = +/- arm
+  k_thrust: 0.02                 # N / Hz
+  base_f_hz: 12.2625             # hover: m g / (2 k) = 0.05*9.81/0.04
+  freq_delta_hz: 0.0
+  arm: 0.1                       # m
+
+initial_state: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+solver:
+  integrator: DOP853
+  rtol: 1.0e-9
+  atol: 1.0e-12
+  steps_per_wingbeat: 200
+  max_time: 10.0

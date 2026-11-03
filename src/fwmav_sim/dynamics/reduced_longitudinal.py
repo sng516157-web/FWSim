@@ -21,7 +21,7 @@ thrust both enter this way. Abdomen handling:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -43,6 +43,27 @@ class ReducedModelParams:
     c_ang: float = 0.0  # angular damping on theta_dot, N m s / rad
     c_a: float = 0.0  # abdomen joint damping, N m s / rad
     lock_abdomen: bool = False
+
+    @classmethod
+    def from_vehicle(cls, vehicle, **kw) -> ReducedModelParams:
+        """Map a VehicleDefinition (thorax + abdomen via one revolute pitch
+        joint) onto the reduced-model parameters (reduced_model_spec.md §1-2)."""
+        bodies = {b.name: b for b in vehicle.bodies}
+        joint = next(j for j in vehicle.joints if j.type == "revolute")
+        thorax = bodies[joint.parent_body]
+        abdomen = bodies[joint.child_body]
+        r_J = np.asarray(joint.location.value, dtype=float)
+        w = np.asarray(abdomen.com_offset.value, dtype=float) - r_J
+        if abs(w[1]) > 1e-15 or abs(w[2]) > 1e-15 or w[0] >= 0:
+            raise ValueError("abdomen CoM must lie on the body x-axis behind the joint")
+        return cls(
+            m_t=thorax.mass.value,
+            m_a=abdomen.mass.value,
+            I_t=float(np.asarray(thorax.inertia.value, dtype=float)[1, 1]),
+            d=float(-r_J[0]),  # joint behind the thorax reference point => r_Jx < 0
+            l_a=float(-w[0]),
+            **kw,
+        )
 
 
 def mass_matrix(q: np.ndarray, p: ReducedModelParams) -> np.ndarray:

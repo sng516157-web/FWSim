@@ -1,0 +1,23 @@
+# M2 passive pendulum: suspended rigid-pivot, locked abdomen, release from a
+# small swing angle. NOT free flight (brief §6.3) — constraint model only.
+#
+# Pivot placement: 50 mm above the vehicle CoM (CoM x-offset of the reference
+# vehicle at alpha_abd = 0 is -0.008 m: m_a * 0.03 / (m_t + m_a)).
+name: m2_passive_pendulum
+kind: suspended_pendulum
+vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
+
+suspension:
+  pivot_body_point: [-0.008, -0.05]   # (x, z) in B; z negative = above the body
+
+abdomen:
+  mode: locked
+
+initial_state: [0.1, 0.0, 0.0, 0.0]   # phi_p = 0.1 rad release
+
+solver:
+  integrator: DOP853
+  rtol: 1.0e-9
+  atol: 1.0e-12
+  steps_per_wingbeat: 200   # not used by the pendulum runner (kept for schema compat)
+  max_time: 10.0

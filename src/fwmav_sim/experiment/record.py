@@ -36,7 +36,7 @@ def save_record(
     name: str,
     ts: TimeSeries,
     experiment_yaml: Path,
-    vehicle_yaml: Path,
+    vehicle_yaml: Path | None = None,
     extra_meta: dict | None = None,
 ) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -46,9 +46,10 @@ def save_record(
     record_dir.joinpath("config.yaml").write_text(
         Path(experiment_yaml).read_text(encoding="utf-8"), encoding="utf-8"
     )
-    record_dir.joinpath("vehicle.yaml").write_text(
-        Path(vehicle_yaml).read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    if vehicle_yaml is not None:
+        record_dir.joinpath("vehicle.yaml").write_text(
+            Path(vehicle_yaml).read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
     metadata = {
         "name": name,

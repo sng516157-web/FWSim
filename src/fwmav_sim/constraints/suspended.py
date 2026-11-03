@@ -30,7 +30,6 @@ from dataclasses import dataclass
 import numpy as np
 
 from fwmav_sim.actuation.prescribed_abdomen import AbdomenProfile, prescribed_alpha
-from fwmav_sim.dynamics import _reduced_reference as ref
 
 
 @dataclass(frozen=True)
@@ -79,9 +78,9 @@ class SuspendedPendulumParams:
 
 def _K(params: SuspendedPendulumParams, al: float) -> tuple[float, float]:
     """K(alpha) = u_J . Ry(alpha) w and dK/dalpha, w = (-l_a, 0)."""
-    l, jx, jz = params.l_a, params.j_x, params.j_z
-    K = l * (-jx * np.cos(al) + jz * np.sin(al))
-    dK = l * (jx * np.sin(al) + jz * np.cos(al))
+    l_a, jx, jz = params.l_a, params.j_x, params.j_z
+    K = l_a * (-jx * np.cos(al) + jz * np.sin(al))
+    dK = l_a * (jx * np.sin(al) + jz * np.cos(al))
     return K, dK
 
 

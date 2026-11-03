@@ -7,7 +7,6 @@ moment test needs the two-wing vehicle assembly and lands in M2.
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
 from fwmav_sim.environment import still_air
@@ -72,6 +71,18 @@ def test_mirrored_wings_mirrored_forces():
             np.testing.assert_allclose(fl.resultant, S @ fr.resultant, atol=1e-12)
 
 
-@pytest.mark.skip(reason="stub — implemented in M2 (two-wing vehicle assembly)")
 def test_symmetric_flapping_zero_roll_yaw_moment():
-    raise NotImplementedError
+    """Two-wing vehicle (M2): symmetric flapping => net roll (M_x) and yaw
+    (M_z) moments about the body origin cancel to numerical precision."""
+    from fwmav_sim.experiment.config import load_vehicle
+    from fwmav_sim.simulation.fixed_body import run_fixed_body
+
+    vehicle = load_vehicle("reference_vehicles/bio_abdomen_fwmav.yaml")
+    model = QuasiSteadyBladeElement(vehicle.aero)
+    env = still_air()
+    kin = _kin()
+    ts = run_fixed_body(vehicle, kin, env, model, n_wingbeats=2, steps_per_wingbeat=100)
+    M = ts["wing_right/M_total"] + ts["wing_left/M_total"]
+    assert np.abs(M[:, 0]).max() < 1e-14  # roll
+    assert np.abs(M[:, 2]).max() < 1e-14  # yaw
+    assert np.abs(M[:, 1]).max() > 1e-6  # pitch moment is nonzero (not trivially zero)

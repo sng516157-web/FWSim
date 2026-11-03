@@ -109,9 +109,10 @@ M(q) q̈ + C(q, q̇) q̇ + G(q) = Q_wing(q, F_wing_avg) + Q_act(τ_act) + Q_damp
   matrix entry enters the code without matching it to `< 1e-10`.
 - `Q_wing`: with `F_wing_avg` applied at `r_T(q)`, `Q_wing,i = F·∂r_T/∂qᵢ`.
 - `Q_act`: actuator torque `τ_act` about the abdomen joint maps as
-  `Q_act = [0, 0, 0, τ_act]ᵀ` plus its reaction `[0,0,−τ_act… ]` on θ —
-  the full mapping is derived in the same SymPy reference (reaction torque
-  on the thorax is not optional; brief §6.1 item 3).
+  `Q_act = [0, 0, 0, τ_act]ᵀ`. Because α_abd is the *relative* joint angle,
+  virtual work gives Q_θ = 0 explicitly: the actuator does work
+  `τ·δ(θ+α) − τ·δθ = τ·δα`; the reaction on the thorax manifests through the
+  mass-matrix coupling, not an explicit forcing term (brief §6.1 item 3).
 - `Q_damp = [0, 0, 0, −c_a α̇_abd]ᵀ` with joint damping `c_a` (JointSpec).
 
 ## 6. Hover trim and small-angle linearization

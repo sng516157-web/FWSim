@@ -52,6 +52,9 @@ names the milestone.
 |---|---|---|---|
 | Timestep refinement | `test_timestep_refinement` (real) | `tests/numerical/test_convergence.py` | M1 ✔ |
 | Blade-element refinement | `test_blade_element_refinement` (real) | `tests/numerical/test_convergence.py` | M1 ✔ |
+| *(M2)* pendulum energy drift | `test_frictionless_pendulum_energy_drift` (real) | `tests/numerical/test_pendulum_energy.py` | M2 ✔ |
+| *(M2)* actuated-case timestep refinement | `test_actuated_pendulum_timestep_refinement` (real) | `tests/numerical/test_pendulum_energy.py` | M2 ✔ |
+| *(M2 §2.4a)* RL-sandbox foil | `test_foil_rhs_equivalence`, `test_foil_hover_equilibrium`, `test_foil_pitch_response` (real) | `tests/analytical/test_foil_rl_sandbox.py` | M2 ✔ |
 | Solver tolerance sensitivity | `test_solver_tolerance_sensitivity` | `tests/numerical/test_convergence.py` | M3 |
 | Quaternion/attitude normalization | `test_quaternion_norm_post_step` | `tests/numerical/test_attitude.py` | M3 |
 | Save/reload reproducibility | `test_save_reload_rerun_reproduces` | `tests/numerical/test_reproducibility.py` | M3 |

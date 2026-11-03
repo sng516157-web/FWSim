@@ -1,0 +1,25 @@
+# M2 actuated pendulum: suspended rigid-pivot with a prescribed sinusoidal
+# abdomen angle (brief §6.4 stage 1). NOT free flight.
+name: m2_actuated_pendulum
+kind: suspended_pendulum
+vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
+
+suspension:
+  pivot_body_point: [-0.008, -0.05]   # (x, z) in B; above the neutral CoM
+
+abdomen:
+  mode: prescribed
+  profile:
+    kind: sinusoid
+    amplitude: 0.3          # rad (within the +/-45 deg joint limits)
+    frequency: 1.0          # Hz
+    phase: 0.0
+
+initial_state: [0.0, 0.0, 0.0, 0.0]
+
+solver:
+  integrator: DOP853
+  rtol: 1.0e-9
+  atol: 1.0e-12
+  steps_per_wingbeat: 200
+  max_time: 10.0

@@ -80,13 +80,13 @@ def inertia_about_com(q: np.ndarray, vehicle) -> np.ndarray:
     positions = body_com_positions(q, vehicle)
     orientations = body_orientations(q, vehicle)
     r_com = com(q, vehicle)
-    I = np.zeros((3, 3))
+    I_out = np.zeros((3, 3))
     for body in vehicle.bodies:
         d = positions[body.name] - r_com
         R_i = orientations[body.name]
         I_i = np.asarray(body.inertia.value, dtype=float)
-        I += R_i @ I_i @ R_i.T + body.mass.value * (float(d @ d) * np.eye(3) - np.outer(d, d))
-    return I
+        I_out += R_i @ I_i @ R_i.T + body.mass.value * (float(d @ d) * np.eye(3) - np.outer(d, d))
+    return I_out
 
 
 def gravity_moment_about_com(q: np.ndarray, vehicle) -> np.ndarray:
