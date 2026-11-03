@@ -1,0 +1,419 @@
+{
+  "$defs": {
+    "AeroModelSpec": {
+      "additionalProperties": false,
+      "description": "Aerodynamic model selection and its coefficient set with provenance.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "coefficients": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "title": "Coefficients",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "AeroModelSpec",
+      "type": "object"
+    },
+    "BladeElementSpec": {
+      "additionalProperties": false,
+      "description": "Spanwise discretization of each rigid wing into blade elements.",
+      "properties": {
+        "n_elements": {
+          "exclusiveMinimum": 0,
+          "title": "N Elements",
+          "type": "integer"
+        },
+        "discretization": {
+          "default": "equal_span",
+          "enum": [
+            "equal_span",
+            "equal_area"
+          ],
+          "title": "Discretization",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n_elements"
+      ],
+      "title": "BladeElementSpec",
+      "type": "object"
+    },
+    "BodySpec": {
+      "additionalProperties": false,
+      "description": "A rigid body: mass, CoM offset in the body frame, inertia about the CoM.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "mass": {
+          "$ref": "#/$defs/Parameter"
+        },
+        "com_offset": {
+          "$ref": "#/$defs/Vector3Parameter"
+        },
+        "inertia": {
+          "$ref": "#/$defs/Matrix3Parameter"
+        }
+      },
+      "required": [
+        "name",
+        "mass",
+        "com_offset",
+        "inertia"
+      ],
+      "title": "BodySpec",
+      "type": "object"
+    },
+    "JointSpec": {
+      "additionalProperties": false,
+      "description": "A joint between two bodies. MVP topology: revolute abdomen joints.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "revolute",
+            "prismatic",
+            "fixed"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "parent_body": {
+          "minLength": 1,
+          "title": "Parent Body",
+          "type": "string"
+        },
+        "child_body": {
+          "minLength": 1,
+          "title": "Child Body",
+          "type": "string"
+        },
+        "axis": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Axis",
+          "type": "array"
+        },
+        "location": {
+          "$ref": "#/$defs/Vector3Parameter"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limits"
+        },
+        "damping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Parameter"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "parent_body",
+        "child_body",
+        "axis",
+        "location"
+      ],
+      "title": "JointSpec",
+      "type": "object"
+    },
+    "Matrix3Parameter": {
+      "additionalProperties": false,
+      "description": "A 3x3 matrix physical parameter (SI), e.g. an inertia tensor.",
+      "properties": {
+        "value": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Value",
+          "type": "array"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "provenance"
+      ],
+      "title": "Matrix3Parameter",
+      "type": "object"
+    },
+    "Parameter": {
+      "additionalProperties": false,
+      "description": "A scalar physical parameter with unit and provenance.",
+      "properties": {
+        "value": {
+          "title": "Value",
+          "type": "number"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "provenance"
+      ],
+      "title": "Parameter",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Origin and validity of a physical parameter (brief \u00a75.8).",
+      "properties": {
+        "source": {
+          "enum": [
+            "measured",
+            "literature",
+            "estimated",
+            "fitted"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "uncertainty_or_range": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainty Or Range"
+        },
+        "calibration_dataset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Dataset"
+        },
+        "valid_regime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Regime"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Vector3Parameter": {
+      "additionalProperties": false,
+      "description": "A 3-vector physical parameter (SI), components in the documented frame.",
+      "properties": {
+        "value": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Value",
+          "type": "array"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "provenance"
+      ],
+      "title": "Vector3Parameter",
+      "type": "object"
+    },
+    "WingSpec": {
+      "additionalProperties": false,
+      "description": "One rigid wing (assumption A-001, A-005).",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "side": {
+          "enum": [
+            "right",
+            "left"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/Parameter"
+        },
+        "root_chord": {
+          "$ref": "#/$defs/Parameter"
+        },
+        "tip_chord": {
+          "$ref": "#/$defs/Parameter"
+        },
+        "planform": {
+          "enum": [
+            "rectangular",
+            "trapezoidal",
+            "elliptical"
+          ],
+          "title": "Planform",
+          "type": "string"
+        },
+        "hinge_location": {
+          "$ref": "#/$defs/Vector3Parameter"
+        }
+      },
+      "required": [
+        "name",
+        "side",
+        "span",
+        "root_chord",
+        "tip_chord",
+        "planform",
+        "hinge_location"
+      ],
+      "title": "WingSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete vehicle definition: bodies, joints, wings, aero selection.",
+  "properties": {
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "bodies": {
+      "items": {
+        "$ref": "#/$defs/BodySpec"
+      },
+      "minItems": 1,
+      "title": "Bodies",
+      "type": "array"
+    },
+    "joints": {
+      "items": {
+        "$ref": "#/$defs/JointSpec"
+      },
+      "title": "Joints",
+      "type": "array"
+    },
+    "wings": {
+      "items": {
+        "$ref": "#/$defs/WingSpec"
+      },
+      "title": "Wings",
+      "type": "array"
+    },
+    "blade_elements": {
+      "$ref": "#/$defs/BladeElementSpec",
+      "default": {
+        "n_elements": 16,
+        "discretization": "equal_span"
+      }
+    },
+    "aero": {
+      "$ref": "#/$defs/AeroModelSpec"
+    }
+  },
+  "required": [
+    "name",
+    "bodies",
+    "aero"
+  ],
+  "title": "VehicleDefinition",
+  "type": "object"
+}

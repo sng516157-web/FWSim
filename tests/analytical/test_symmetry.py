@@ -2,7 +2,9 @@
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="stub — implemented in M1 (mirrored forces) and M2 (roll/yaw moment)")
+pytestmark = pytest.mark.skip(
+    reason="stub — implemented in M1 (mirrored forces) and M2 (roll/yaw moment)"
+)
 
 
 def test_mirrored_wings_mirrored_forces():

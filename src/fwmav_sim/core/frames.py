@@ -30,7 +30,8 @@ FRAMES: dict[str, Frame] = {
     "B": Frame(
         name="B",
         parent="W",
-        description="Body (thorax) frame: x forward, y right, z down; coincides with W at zero attitude.",
+        description="Body (thorax) frame: x forward, y right, z down; coincides with W at zero "
+        "attitude.",
     ),
     "SP": Frame(
         name="SP",
@@ -40,18 +41,21 @@ FRAMES: dict[str, Frame] = {
     "WR_R": Frame(
         name="WR_R",
         parent="SP",
-        description="Right wing-root frame: span along +y, chord along x (Sane & Dickinson convention).",
+        description="Right wing-root frame: span along +y, chord along x "
+        "(Sane & Dickinson convention).",
     ),
     "WR_L": Frame(
         name="WR_L",
         parent="SP",
-        description="Left wing-root frame: right-handed mirror of WR_R via reflection S = diag(1, -1, 1); "
-        "span along -y_SP, chord along +x, z-axis opposite to the physical wing normal.",
+        description="Left wing-root frame: right-handed mirror of WR_R via reflection "
+        "S = diag(1, -1, 1); span along -y_SP, chord along +x, z-axis opposite to the "
+        "physical wing normal.",
     ),
     "BE": Frame(
         name="BE",
         parent="WR_R",
-        description="Blade-element frame: origin at the element centre, axes aligned with the parent WR.",
+        description="Blade-element frame: origin at the element centre, axes aligned with the "
+        "parent WR.",
     ),
 }
 
