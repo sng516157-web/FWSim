@@ -249,14 +249,14 @@ def element_state(
         v_air_W = np.zeros(3)
     v_rel = v_W - np.asarray(v_air_W, dtype=float)
 
-    # Geometric angle of attack (frames.md §3/§4): the angle between the chord
-    # and the oncoming flow in the chord-normal plane, positive when the flow
-    # approaches from the physical-normal side. The spanwise component of
-    # v_rel is excluded.   alpha = atan2(-v_rel . n_phys, v_rel . chord_dir),
-    # with n_phys = +z_BE (right) / -z_BE (left).
+    # Geometric angle of attack (flight-dynamics convention, frames.md §3/§4):
+    # alpha = atan2(w, u) with (u, w) the element's velocity relative to the
+    # air in the BE chord-normal plane; the spanwise component is excluded.
+    # Positive theta_w (leading edge up) increases alpha for +x motion.
+    # n_phys = +z_BE (right) / -z_BE (left).
     chord_dir = R_W_BE @ np.array([1.0, 0.0, 0.0])
     n_phys = R_W_BE @ np.array([0.0, 0.0, 1.0 if side == "right" else -1.0])
-    alpha = float(np.arctan2(-v_rel @ n_phys, v_rel @ chord_dir))
+    alpha = float(np.arctan2(v_rel @ n_phys, v_rel @ chord_dir))
 
     speed = float(np.linalg.norm(v_rel))
     reynolds = speed * element.chord / nu

@@ -112,14 +112,14 @@ def test_element_aoa_hand_computed():
     def alpha_for(v_air):
         return element_state(wing, el, kin, 0.0, nu=_NU, v_air_W=v_air).alpha
 
-    # wind from ahead (-x): oncoming flow along +x hits the leading edge -> alpha = 0
+    # wind from ahead (-x): oncoming flow hits the leading edge -> alpha = 0
     assert abs(alpha_for(np.array([-1.0, 0.0, 0.0]))) < 1e-12
-    # wind from above (-z) -> v_rel = +z (toward physical normal) -> alpha = -90 deg
-    assert abs(alpha_for(np.array([0.0, 0.0, -1.0])) + np.pi / 2) < 1e-12
-    # wind from below -> alpha = +90 deg
-    assert abs(alpha_for(np.array([0.0, 0.0, 1.0])) - np.pi / 2) < 1e-12
-    # wind at 45 deg from front-below
-    assert abs(alpha_for(np.array([-1.0, 0.0, 1.0])) - np.pi / 4) < 1e-12
+    # upward wind (-z): v_rel = +z; air comes from BELOW (underside) -> alpha = +90 deg
+    assert abs(alpha_for(np.array([0.0, 0.0, -1.0])) - np.pi / 2) < 1e-12
+    # downward wind: flow from above (upper surface) -> alpha = -90 deg
+    assert abs(alpha_for(np.array([0.0, 0.0, 1.0])) + np.pi / 2) < 1e-12
+    # wind from front-above at 45 deg: alpha = -45 deg
+    assert abs(alpha_for(np.array([-1.0, 0.0, 1.0])) + np.pi / 4) < 1e-12
 
 
 def test_element_areas_sum_to_planform_area():

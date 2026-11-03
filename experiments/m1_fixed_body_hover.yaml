@@ -1,0 +1,23 @@
+# M1 fixed-body hover experiment (acceptance command: fwmav-sim run experiments/m1_fixed_body_hover.yaml)
+name: m1_fixed_body_hover
+kind: fixed_body
+vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
+
+kinematics:
+  # Placeholder hover kinematics (source: estimated — paper kinematics pending).
+  # Conventions per docs/conventions/frames.md §3: phi = phi_amp cos(2 pi f t);
+  # positive pitch_phase = advance relative to the stroke.
+  flap_amplitude: {value: 1.0472, unit: rad, provenance: {source: estimated, uncertainty_or_range: "60 deg placeholder"}}
+  flap_frequency: {value: 15.0, unit: Hz, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  pitch_amplitude: {value: 0.7854, unit: rad, provenance: {source: estimated, uncertainty_or_range: "45 deg placeholder"}}
+  pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg: theta_w in phase with stroke velocity under frames.md conventions — leading edge up during the forward stroke, down during the backstroke"}}
+  pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "horizontal stroke plane placeholder"}}
+
+environment:
+  air_density: {value: 1.225, unit: kg/m^3, provenance: {source: literature, reference: "ISA sea level"}}
+  kinematic_viscosity: {value: 1.460e-5, unit: m^2/s, provenance: {source: literature, reference: "ISA sea level"}}
+  wind: {value: [0.0, 0.0, 0.0], unit: m/s, provenance: {source: estimated, uncertainty_or_range: "still air"}}
+
+n_wingbeats: 5
+steps_per_wingbeat: 200

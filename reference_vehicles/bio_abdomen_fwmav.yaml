@@ -1,0 +1,121 @@
+# Reference vehicle: bio-inspired abdomen FWMAV (Leng, Ng & Tang, IMAV 2024)
+#
+# data_status: pending_original_parameters
+# Every value below is a PLACEHOLDER labelled source: estimated — the paper's
+# parameter table has not been supplied (action plan §6, open item 1). These
+# numbers exist to exercise the pipeline; they are not the paper's vehicle.
+# Scope note: the X-wing's aft wing pair is omitted in this M1 draft; the
+# two-wing assembly arrives in M2 (documented limitation).
+name: bio_abdomen_fwmav_draft
+data_status: pending_original_parameters
+
+bodies:
+  - name: thorax
+    mass:
+      value: 0.011
+      unit: kg
+      provenance:
+        source: estimated
+        uncertainty_or_range: "placeholder pending paper parameter table"
+    com_offset:
+      value: [0.0, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "thorax reference point = B origin (reduced_model_spec.md §2)"
+    inertia:
+      value: [[2.0e-6, 0.0, 0.0], [0.0, 2.0e-6, 0.0], [0.0, 0.0, 2.0e-6]]
+      unit: kg m^2
+      provenance:
+        source: estimated
+        uncertainty_or_range: "placeholder pending paper parameter table"
+  - name: abdomen
+    mass:
+      value: 0.004
+      unit: kg
+      provenance:
+        source: estimated
+        uncertainty_or_range: "electronics concentrated in abdomen (paper concept); value pending"
+    com_offset:
+      value: [-0.03, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "30 mm behind thorax reference point; pending"
+    inertia:
+      value: [[5.0e-7, 0.0, 0.0], [0.0, 5.0e-7, 0.0], [0.0, 0.0, 5.0e-7]]
+      unit: kg m^2
+      provenance:
+        source: estimated
+        uncertainty_or_range: "placeholder pending paper parameter table"
+
+joints:
+  - name: abdomen_pitch
+    type: revolute
+    parent_body: thorax
+    child_body: abdomen
+    axis: [0.0, 1.0, 0.0]   # +y_B: positive alpha_abd tips the abdomen down (frames.md / reduced_model_spec.md)
+    location:
+      value: [-0.015, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "joint 15 mm behind thorax reference point; pending"
+    limits: [-0.785398, 0.785398]   # +/-45 deg, placeholder
+    damping:
+      value: 1.0e-6
+      unit: N m s / rad
+      provenance:
+        source: estimated
+        uncertainty_or_range: "placeholder"
+
+wings:
+  - name: wing_right
+    side: right
+    span: {value: 0.12, unit: m, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    root_chord: {value: 0.035, unit: m, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    tip_chord: {value: 0.018, unit: m, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    planform: trapezoidal
+    hinge_location:
+      value: [0.0, 0.005, 0.0]
+      unit: m
+      provenance: {source: estimated, uncertainty_or_range: "placeholder"}
+    pitch_axis_fraction:
+      value: 0.0   # leading-edge spar (physical arrangement; estimated until paper data)
+      unit: "1"
+      provenance:
+        source: estimated
+        uncertainty_or_range: "M1 default placeholder (leading edge); pending paper data"
+  - name: wing_left
+    side: left
+    span: {value: 0.12, unit: m, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    root_chord: {value: 0.035, unit: m, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    tip_chord: {value: 0.018, unit: m, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    planform: trapezoidal
+    hinge_location:
+      value: [0.0, -0.005, 0.0]
+      unit: m
+      provenance: {source: estimated, uncertainty_or_range: "mirrored placeholder"}
+    pitch_axis_fraction:
+      value: 0.0
+      unit: "1"
+      provenance:
+        source: estimated
+        uncertainty_or_range: "M1 default placeholder (leading edge); pending paper data"
+
+blade_elements:
+  n_elements: 16
+  discretization: equal_span
+
+aero:
+  name: quasi_steady_blade_element
+  coefficients:
+    # Dickinson et al. 1999, Science 284:1954 (Robofly fits)
+    cl_0:          {value: 0.225, unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954", valid_regime: "Robofly, Re ~ O(100); unverified for this vehicle"}}
+    cl_slope:      {value: 1.58,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954", valid_regime: "Robofly, Re ~ O(100); unverified for this vehicle"}}
+    cl_freq:       {value: 2.13,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954"}}
+    cl_phase_deg:  {value: 7.20,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954"}}
+    cd_0:          {value: 1.92,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954", valid_regime: "Robofly, Re ~ O(100); unverified for this vehicle"}}
+    cd_slope:      {value: 1.55,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954", valid_regime: "Robofly, Re ~ O(100); unverified for this vehicle"}}
+    cd_freq:       {value: 2.04,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954"}}
+    cd_phase_deg:  {value: 9.82,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954"}}

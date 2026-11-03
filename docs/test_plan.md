@@ -55,6 +55,7 @@ names the milestone.
 | Solver tolerance sensitivity | `test_solver_tolerance_sensitivity` | `tests/numerical/test_convergence.py` | M3 |
 | Quaternion/attitude normalization | `test_quaternion_norm_post_step` | `tests/numerical/test_attitude.py` | M3 |
 | Save/reload reproducibility | `test_save_reload_rerun_reproduces` | `tests/numerical/test_reproducibility.py` | M3 |
+| Repeat-run determinism (M1 stage §1.4) | `test_repeat_run_determinism` (real) | `tests/numerical/test_reproducibility.py` | M1 ✔ |
 | Headless/UI equivalence | `test_headless_ui_equivalence` | `tests/numerical/test_ui_equivalence.py` | M5 |
 | *(M3) solver-failure behaviour* | `test_nan_forces_fail_visibly` | `tests/numerical/test_failure.py` | M3 |
 

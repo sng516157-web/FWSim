@@ -70,12 +70,13 @@ def test_translational_term_at_0_45_90deg():
     assert f.F_trans[2] < 0  # lift points UP (-z, frames.md section 1.1)
     assert f.F_trans[0] < 0  # drag opposes +x motion
 
-    # alpha = 45 deg: leading edge up
+    # alpha = +45 deg: element moving forward and DOWN (leading edge up
+    # relative to the oncoming flow; flow approaches from the underside)
     a = np.radians(45.0)
-    v = np.array([np.cos(a), 0.0, -np.sin(a)])
+    v = np.array([np.cos(a), 0.0, np.sin(a)])
     cl45 = 0.225 + 1.58 * np.sin(np.radians(2.13 * 45 - 7.20))
     cd45 = 1.92 - 1.55 * np.cos(np.radians(2.04 * 45 - 9.82))
-    n_perp = np.array([0.0, 0.0, 1.0]) - (-np.sin(a)) * v
+    n_perp = np.array([0.0, 0.0, 1.0]) - np.sin(a) * v
     e_L = -n_perp / np.linalg.norm(n_perp)
     f = m.element_forces(_state(v, alpha=a), env)
     np.testing.assert_allclose(f.F_trans, _Q * (cl45 * e_L - cd45 * v), rtol=1e-12)
@@ -144,8 +145,7 @@ def test_drag_opposes_relative_motion():
     rng = np.random.default_rng(3)
     for _ in range(50):
         v = rng.normal(size=3)
-        alpha = float(np.arctan2(v[2] and -v[2], v[0]))  # consistent signed alpha
-        alpha = float(np.arctan2(-v[2], v[0]))
+        alpha = float(np.arctan2(v[2], v[0]))  # signed alpha, same convention as code
         f = m.element_forces(_state(v, alpha=alpha), env)
         assert f.F_trans @ v < 0  # resultant translational force removes energy
 

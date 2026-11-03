@@ -224,6 +224,7 @@ class VehicleDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)
+    data_status: str | None = None  # e.g. "pending_original_parameters" (brief §14.6)
     bodies: list[BodySpec] = Field(min_length=1)
     joints: list[JointSpec] = Field(default_factory=list)
     wings: list[WingSpec] = Field(default_factory=list)
