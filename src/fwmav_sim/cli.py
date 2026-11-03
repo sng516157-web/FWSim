@@ -28,6 +28,11 @@ def main() -> int:
     p_report = sub.add_parser("report", help="regenerate figures from a stored run record")
     p_report.add_argument("record_dir", type=Path)
 
+    p_view = sub.add_parser("view", help="live 3D MeshCat view of an experiment or run record")
+    p_view.add_argument("source", type=Path, help="experiment YAML or run-record directory")
+    p_view.add_argument("--speed", type=float, default=0.05,
+                        help="playback speed fraction (0.05 = 20x slowdown)")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -45,6 +50,15 @@ def main() -> int:
         out_dir = Path(args.record_dir) / "figures"
         for path in make_report_figures(ts, out_dir):
             print(f"figure: {path}")
+        return 0
+
+    if args.command == "view":
+        from fwmav_sim.viz.meshcat_scene import replay_record, serve_live
+
+        if args.source.is_dir():
+            replay_record(args.source, playback_speed=args.speed)
+        else:
+            serve_live(args.source, playback_speed=args.speed)
         return 0
 
     return 1
