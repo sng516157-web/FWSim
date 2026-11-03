@@ -57,18 +57,25 @@ def _wing_mesh_vertices(wing: WingSpec, edges: np.ndarray) -> np.ndarray:
     return np.asarray(verts)
 
 
-def _align_z_to(d: np.ndarray) -> np.ndarray:
-    """Rotation matrix mapping +z onto the unit vector d (axis-angle)."""
-    z = np.array([0.0, 0.0, 1.0])
+def _align_axis_to(d: np.ndarray, axis: np.ndarray) -> np.ndarray:
+    """Rotation matrix mapping the unit vector `axis` onto the unit vector d."""
     d = d / np.linalg.norm(d)
-    k = np.cross(z, d)
-    c = float(z @ d)
+    k = np.cross(axis, d)
+    c = float(axis @ d)
     if c > 1.0 - 1e-12:
         return np.eye(3)
     if c < -1.0 + 1e-12:
-        return np.diag([1.0, -1.0, -1.0])  # 180 deg about x
+        # 180 deg about any axis perpendicular to `axis`
+        perp = np.cross(axis, [1.0, 0.0, 0.0])
+        if np.linalg.norm(perp) < 1e-9:
+            perp = np.cross(axis, [0.0, 1.0, 0.0])
+        perp /= np.linalg.norm(perp)
+        return 2.0 * np.outer(perp, perp) - np.eye(3)
     kx = np.array([[0.0, -k[2], k[1]], [k[2], 0.0, -k[0]], [-k[1], k[0], 0.0]])
     return np.eye(3) + kx + kx @ kx * (1.0 / (1.0 + c))
+
+
+_Y = np.array([0.0, 1.0, 0.0])  # meshcat Cylinder axis convention (three.js)
 
 
 def build_scene(
@@ -151,14 +158,14 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
                     head.set_transform(np.zeros((4, 4)))
                     continue
                 d = f / np.linalg.norm(f)
-                R_al = _align_z_to(d)
+                R_al = _align_axis_to(d, _Y)  # cylinder axis is +y (three.js convention)
                 L_shaft, L_head = 0.8 * L, 0.2 * L
                 tf_s = np.eye(4)
-                tf_s[:3, :3] = R_al @ np.diag([1.0, 1.0, L_shaft])
+                tf_s[:3, :3] = R_al @ np.diag([1.0, L_shaft, 1.0])
                 tf_s[:3, 3] = st.r_W + d * (L_shaft / 2)
                 shaft.set_transform(tf_s)
                 tf_h = np.eye(4)
-                tf_h[:3, :3] = R_al @ np.diag([1.0, 1.0, L_head])
+                tf_h[:3, :3] = R_al @ np.diag([1.0, L_head, 1.0])
                 tf_h[:3, 3] = st.r_W + d * (L_shaft + L_head / 2)
                 head.set_transform(tf_h)
 
