@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fwmav-sim"
+version = "0.0.0"
+description = "Flapping-wing micro aerial vehicle (FWMAV) flight-dynamics and control workbench"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "matplotlib>=3.8",
+    "meshcat>=0.3",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov",
+    "ruff>=0.4",
+    "sympy>=1.12",
+]
+
+[project.scripts]
+fwmav-sim = "fwmav_sim.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fwmav_sim"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = []
