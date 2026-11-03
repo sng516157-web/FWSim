@@ -134,12 +134,28 @@ class WingSpec(BaseModel):
     tip_chord: Parameter  # m
     planform: Literal["rectangular", "trapezoidal", "elliptical"]
     hinge_location: Vector3Parameter  # wing-root origin in the body frame B, m
+    # chordwise location of the wing pitch (theta_w) axis: 0 = leading edge,
+    # 0.5 = mid-chord (M0->M1 resolution: configurable, reference default 0.0)
+    pitch_axis_fraction: Parameter = Field(
+        default_factory=lambda: Parameter(
+            value=0.0,
+            unit="1",
+            provenance=Provenance(source="estimated", reference="M1 default placeholder"),
+        )
+    )
 
     @field_validator("span", "root_chord", "tip_chord")
     @classmethod
     def _positive_length(cls, p: Parameter) -> Parameter:
         if p.value <= 0:
             raise ValueError("wing dimensions must be positive")
+        return p
+
+    @field_validator("pitch_axis_fraction")
+    @classmethod
+    def _pitch_axis_in_range(cls, p: Parameter) -> Parameter:
+        if not 0.0 <= p.value <= 1.0:
+            raise ValueError("pitch_axis_fraction must lie in [0, 1]")
         return p
 
 
@@ -191,13 +207,14 @@ class EnvironmentSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     air_density: Parameter  # kg / m^3
+    kinematic_viscosity: Parameter  # nu, m^2 / s (needed for blade-element Reynolds number)
     wind: Vector3Parameter  # air velocity in the world frame W, m / s
 
-    @field_validator("air_density")
+    @field_validator("air_density", "kinematic_viscosity")
     @classmethod
-    def _density_positive(cls, p: Parameter) -> Parameter:
+    def _positive(cls, p: Parameter) -> Parameter:
         if p.value <= 0:
-            raise ValueError("air density must be positive")
+            raise ValueError("air density and kinematic viscosity must be positive")
         return p
 
 
