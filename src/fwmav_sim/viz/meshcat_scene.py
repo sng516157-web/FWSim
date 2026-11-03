@@ -43,16 +43,17 @@ from fwmav_sim.vehicle.schema import WingSpec
 def _wing_mesh_vertices(wing: WingSpec, edges: np.ndarray) -> np.ndarray:
     """Wing surface quad-strip vertices in WR coords (pitch axis honoured).
 
-    +x_WR points toward the leading edge; the pitch axis is at
-    pitch_axis_fraction of the chord from the LE (frames.md / WingSpec docs).
+    +x_WR points toward the leading edge, +y_WR is the span (outboard on the
+    wing's own side) for BOTH wings — left/right mirroring lives entirely in
+    the frozen R_SP_WR_L chain (frames.md §4), never in the geometry.
+    The pitch axis is at pitch_axis_fraction of the chord from the LE.
     """
-    sign = 1.0 if wing.side == "right" else -1.0
     x0 = wing.pitch_axis_fraction.value
     verts = []
     for s in edges:
         c = chord_at(wing, s)
-        verts.append([(x0 - 1.0) * c, sign * s, 0.0])  # trailing-edge side
-        verts.append([x0 * c, sign * s, 0.0])  # leading-edge side
+        verts.append([(x0 - 1.0) * c, s, 0.0])  # trailing-edge side
+        verts.append([x0 * c, s, 0.0])  # leading-edge side
     return np.asarray(verts)
 
 
@@ -65,6 +66,11 @@ def build_scene(
 ) -> dict:
     """Create the static scene content. Returns handles updated per frame."""
     import meshcat.geometry as g
+
+    # meshcat's default helpers assume Z-up; our world is NED (z down,
+    # frames.md §1.1), so hide them to avoid sign confusion
+    vis["/Grid"].set_property("visible", False)
+    vis["/Axes"].set_property("visible", False)
 
     state = {"wings": []}
     for wing in wings:
@@ -129,10 +135,11 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
             )
 
 
-def serve_live(experiment_path: Path, playback_speed: float = 0.05) -> str:
+def serve_live(experiment_path: Path, playback_speed: float = 0.05, force_scale: float = 5.0) -> str:
     """Start MeshCat and animate the wingbeat in a loop. Blocks (Ctrl-C stops).
 
     playback_speed < 1 slows the wingbeat down for viewing.
+    force_scale is the arrow display scale in metres per newton (display-only).
     Returns the URL (also printed).
     """
     import meshcat
@@ -144,7 +151,8 @@ def serve_live(experiment_path: Path, playback_speed: float = 0.05) -> str:
 
     vis = meshcat.Visualizer()
     state = build_scene(vis, vehicle.wings, exp.kinematics,
-                        n_elements=vehicle.blade_elements.n_elements)
+                        n_elements=vehicle.blade_elements.n_elements,
+                        force_scale=force_scale)
     state["kinematics"] = exp.kinematics
     url = vis.url()
     print(f"MeshCat live view: {url}   (Ctrl-C to stop)")
@@ -161,10 +169,10 @@ def serve_live(experiment_path: Path, playback_speed: float = 0.05) -> str:
     return url
 
 
-def replay_record(record_dir: Path, playback_speed: float = 0.05) -> str:
+def replay_record(record_dir: Path, playback_speed: float = 0.05, force_scale: float = 5.0) -> str:
     """Replay a stored run record live (forces from the record's config)."""
     record_dir = Path(record_dir)
-    return serve_live(record_dir / "config.yaml", playback_speed)
+    return serve_live(record_dir / "config.yaml", playback_speed, force_scale)
 
 
 def spike_check() -> bool:

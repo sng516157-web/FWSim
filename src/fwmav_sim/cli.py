@@ -32,6 +32,8 @@ def main() -> int:
     p_view.add_argument("source", type=Path, help="experiment YAML or run-record directory")
     p_view.add_argument("--speed", type=float, default=0.05,
                         help="playback speed fraction (0.05 = 20x slowdown)")
+    p_view.add_argument("--force-scale", type=float, default=5.0,
+                        help="force arrow display scale, metres per newton")
 
     args = parser.parse_args()
 
@@ -56,9 +58,9 @@ def main() -> int:
         from fwmav_sim.viz.meshcat_scene import replay_record, serve_live
 
         if args.source.is_dir():
-            replay_record(args.source, playback_speed=args.speed)
+            replay_record(args.source, playback_speed=args.speed, force_scale=args.force_scale)
         else:
-            serve_live(args.source, playback_speed=args.speed)
+            serve_live(args.source, playback_speed=args.speed, force_scale=args.force_scale)
         return 0
 
     return 1
