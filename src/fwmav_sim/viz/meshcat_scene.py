@@ -57,12 +57,26 @@ def _wing_mesh_vertices(wing: WingSpec, edges: np.ndarray) -> np.ndarray:
     return np.asarray(verts)
 
 
+def _align_z_to(d: np.ndarray) -> np.ndarray:
+    """Rotation matrix mapping +z onto the unit vector d (axis-angle)."""
+    z = np.array([0.0, 0.0, 1.0])
+    d = d / np.linalg.norm(d)
+    k = np.cross(z, d)
+    c = float(z @ d)
+    if c > 1.0 - 1e-12:
+        return np.eye(3)
+    if c < -1.0 + 1e-12:
+        return np.diag([1.0, -1.0, -1.0])  # 180 deg about x
+    kx = np.array([[0.0, -k[2], k[1]], [k[2], 0.0, -k[0]], [-k[1], k[0], 0.0]])
+    return np.eye(3) + kx + kx @ kx * (1.0 / (1.0 + c))
+
+
 def build_scene(
     vis,
     wings: list[WingSpec],
     kinematics: PrescribedWingKinematics,
     n_elements: int = 16,
-    force_scale: float = 1.0,
+    force_scale: float = 5.0,
 ) -> dict:
     """Create the static scene content. Returns handles updated per frame."""
     import meshcat.geometry as g
@@ -88,10 +102,14 @@ def build_scene(
         )
         vis[f"frames/{wing.name}_root"].set_object(g.triad(scale=0.03))
         vis[f"frames/{wing.name}_tip"].set_object(g.triad(scale=0.02))
-        vis[f"forces/{wing.name}"].set_object(
-            g.LineSegments(g.PointsGeometry(np.zeros((2 * n_elements, 3))),
-                           g.LineBasicMaterial(color=0xFF5533))
-        )
+        # one shaft + head per element; unit-height z-aligned cylinders
+        # transformed per frame (display-only arrow scale)
+        for j in range(n_elements):
+            vis[f"forces/{wing.name}/{j}/shaft"].set_object(
+                g.Cylinder(1.0, 0.0008), g.MeshLambertMaterial(color=0xFF2222))
+            vis[f"forces/{wing.name}/{j}/head"].set_object(
+                g.Cylinder(1.0, radiusTop=0.0, radiusBottom=0.0025),
+                g.MeshLambertMaterial(color=0xFF2222))
         state["wings"].append({"spec": wing, "elements": elements})
     vis["com"].set_object(g.Sphere(0.004), g.MeshLambertMaterial(color=0xFF3333))
     vis["frames/world"].set_object(g.triad(scale=0.05))
@@ -101,8 +119,6 @@ def build_scene(
 
 def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
     """Pose all wings and force arrows at time t (one animation frame)."""
-    import meshcat.geometry as g
-
     kin = state["kinematics"]
     beta = kin.stroke_plane_angle.value
     for entry in state["wings"]:
@@ -124,15 +140,27 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
         vis[f"frames/{wing.name}_tip"].set_transform(tf_tip)
 
         if model is not None and env is not None:
-            seg = np.zeros((2 * len(elements), 3))
             for j, el in enumerate(elements):
                 st = element_state(wing, el, kin, t, nu=env.nu, v_air_W=env.v_air_W)
                 f = model.element_forces(st, env).resultant
-                seg[2 * j] = st.r_W
-                seg[2 * j + 1] = st.r_W + state["force_scale"] * f
-            vis[f"forces/{wing.name}"].set_object(
-                g.LineSegments(g.PointsGeometry(seg), g.LineBasicMaterial(color=0xFF5533))
-            )
+                L = float(np.linalg.norm(f)) * state["force_scale"]
+                shaft = vis[f"forces/{wing.name}/{j}/shaft"]
+                head = vis[f"forces/{wing.name}/{j}/head"]
+                if L < 1e-4:
+                    shaft.set_transform(np.zeros((4, 4)))
+                    head.set_transform(np.zeros((4, 4)))
+                    continue
+                d = f / np.linalg.norm(f)
+                R_al = _align_z_to(d)
+                L_shaft, L_head = 0.8 * L, 0.2 * L
+                tf_s = np.eye(4)
+                tf_s[:3, :3] = R_al @ np.diag([1.0, 1.0, L_shaft])
+                tf_s[:3, 3] = st.r_W + d * (L_shaft / 2)
+                shaft.set_transform(tf_s)
+                tf_h = np.eye(4)
+                tf_h[:3, :3] = R_al @ np.diag([1.0, 1.0, L_head])
+                tf_h[:3, 3] = st.r_W + d * (L_shaft + L_head / 2)
+                head.set_transform(tf_h)
 
 
 def serve_live(
