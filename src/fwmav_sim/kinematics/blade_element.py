@@ -206,6 +206,10 @@ class ElementState:
     alpha: float  # local geometric angle of attack, rad (frames.md §3/§4 sign rule)
     reynolds: float  # Re = |v_rel| c / nu
     side: Literal["right", "left"]
+    # M1 extensions needed by the rotational/added-mass terms (stage-file
+    # dataclass extended, documented in the M1 report):
+    pitch_rate: float  # theta_w_dot [rad/s]; identical command for both wings
+    pitch_axis_fraction: float  # x_hat_0: pitch axis location, 0 = leading edge
 
 
 def element_state(
@@ -268,4 +272,6 @@ def element_state(
         alpha=alpha,
         reynolds=reynolds,
         side=side,
+        pitch_rate=ks.theta_w_dot,
+        pitch_axis_fraction=wing.pitch_axis_fraction.value,
     )
