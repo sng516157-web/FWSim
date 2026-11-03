@@ -39,8 +39,8 @@ pytest --collect-only -q
 
 | Milestone | Scope | Status |
 |---|---|---|
-| M0 | Modelling specification and test plan | in progress |
-| M1 | Fixed-body aerodynamic vertical slice | not started |
+| M0 | Modelling specification and test plan | accepted (report: `docs/milestone_reports/M0.md`) |
+| M1 | Fixed-body aerodynamic vertical slice | in progress |
 | M2 | Two-wing vehicle + analytical abdomen model | not started |
 | M3 | Nonlinear articulated free-body simulation | not started |
 | M4 | Validation and experiment comparison | not started |

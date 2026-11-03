@@ -50,8 +50,8 @@ names the milestone.
 
 | Brief §11.3 bullet | Test function | File | Milestone |
 |---|---|---|---|
-| Timestep refinement | `test_timestep_refinement` | `tests/numerical/test_convergence.py` | M1 |
-| Blade-element refinement | `test_blade_element_refinement` | `tests/numerical/test_convergence.py` | M1 |
+| Timestep refinement | `test_timestep_refinement` (real) | `tests/numerical/test_convergence.py` | M1 ✔ |
+| Blade-element refinement | `test_blade_element_refinement` (real) | `tests/numerical/test_convergence.py` | M1 ✔ |
 | Solver tolerance sensitivity | `test_solver_tolerance_sensitivity` | `tests/numerical/test_convergence.py` | M3 |
 | Quaternion/attitude normalization | `test_quaternion_norm_post_step` | `tests/numerical/test_attitude.py` | M3 |
 | Save/reload reproducibility | `test_save_reload_rerun_reproduces` | `tests/numerical/test_reproducibility.py` | M3 |
