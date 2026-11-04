@@ -15,7 +15,7 @@ from fwmav_sim.kinematics.blade_element import (
     planform_area,
 )
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics
-from fwmav_sim.vehicle.schema import WingSpec
+from fwmav_sim.vehicle.schema import Parameter, Vector3Parameter, WingSpec
 
 _PROV = {"source": "estimated", "uncertainty_or_range": "synthetic test value"}
 
@@ -177,6 +177,32 @@ def test_free_body_element_state_matches_fixed_body_at_rest():
                                        omega_W=np.zeros(3), v_B_W=v_body,
                                        v_air_W=v_body)
         assert abs(comp.alpha - fixed.alpha) < 1e-15
+
+
+def test_dihedral_tips_up_and_mirrors():
+    """DR-005: gamma > 0 raises both wingtips; left/right mirror stays exact;
+    gamma = 0 recovers the frozen chain."""
+    from fwmav_sim.core.transforms import R_B_SP, R_B_SP_wing
+
+    np.testing.assert_allclose(R_B_SP_wing(0.2), R_B_SP(0.2), atol=1e-15)
+
+    kin = _kin()
+    gamma = np.radians(50.0)
+    wing_r = _wing("right").model_copy(
+        update={"dihedral_angle": Parameter(value=gamma, unit="rad", provenance=_PROV)})
+    wing_l = _wing("left").model_copy(
+        update={"hinge_location": Vector3Parameter(value=[0.01, -0.02, 0.0], unit="m",
+                                                   provenance=_PROV),
+                "dihedral_angle": Parameter(value=gamma, unit="rad", provenance=_PROV)})
+    el_r = discretize(wing_r, 4)[-1]  # outermost element
+    el_l = discretize(wing_l, 4)[-1]
+    st_r = element_state(wing_r, el_r, kin, 0.0, nu=_NU)
+    st_l = element_state(wing_l, el_l, kin, 0.0, nu=_NU)
+    # at t=0, phi = phi_amp: both tips should be ABOVE the hinge plane (z < 0)
+    assert st_r.r_W[2] < 0 and st_l.r_W[2] < 0
+    # mirror consistency of positions under S
+    S = np.diag([1.0, -1.0, 1.0])
+    np.testing.assert_allclose(st_l.r_W, S @ st_r.r_W, atol=1e-12)
 
 
 def test_mirrored_wings_mirrored_states():

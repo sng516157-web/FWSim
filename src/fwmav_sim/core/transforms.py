@@ -65,6 +65,20 @@ def R_B_SP(beta: float) -> np.ndarray:
     return Ry(beta)
 
 
+def R_B_SP_wing(beta: float, gamma: float = 0.0, side: str = "right") -> np.ndarray:
+    """Stroke-plane DCM with optional per-wing dihedral (DR-005, frames.md §1.4):
+
+        R_B_SP_wing = Rx(sigma * gamma) @ Ry(beta),
+        sigma = -1 (right) / +1 (left), so gamma > 0 raises both wingtips.
+
+    gamma = 0 recovers the frozen chain exactly.
+    """
+    if gamma == 0.0:
+        return Ry(beta)
+    sigma = -1.0 if side == "right" else 1.0
+    return Rx(sigma * gamma) @ Ry(beta)
+
+
 def R_SP_WR(phi: float, theta_w: float, psi_w: float, side: str = "right") -> np.ndarray:
     """Wing-root DCM from the wing angles (frames.md §3, §4).
 

@@ -1,0 +1,122 @@
+# Reference vehicle: AirPulse (26 g butterfly-inspired tailless FWMAV)
+# Source: Gu et al. 2026, "A 26-gram tailless butterfly-inspired flapping-wing
+# robot with onboard attitude control" (AirPulse), arXiv:2602.06811
+# (derivations/_airpulse.pdf is a local copy for parsing provenance).
+#
+# data_status: literature_partial
+#
+# Frame note: the paper uses FLU (+x fwd, +y left, +z up); values below are
+# converted to our body frame (+x fwd, +y right, +z down): y -> -y, z -> -z,
+# with inertia cross-term signs adjusted (I_xy, I_xz flip, I_yz unchanged).
+#
+# Documented approximations (each flagged in the field's provenance):
+#  - Wings are massless in our current model, but this platform's wings are
+#    38% of the total mass and their inertial motion is the paper's central
+#    phenomenon. We encode the WHOLE-ROBOT neutral-configuration mass
+#    properties (Table A1, flap angle 0) on the body. This is our largest
+#    model-fidelity gap for this vehicle — wing-mass bodies are a planned
+#    schema/dynamics extension.
+#  - Wing planform approximated as rectangular at the paper's mean
+#    aerodynamic chord (the paper's swallowtail planform is B-spline
+#    parameterised; area and MAC are matched).
+#  - Wing pitch on AirPulse is PASSIVE (compliance feathering); we
+#    approximate with prescribed sinusoidal pitch (placeholder amplitude).
+name: airpulse
+data_status: literature_partial
+
+bodies:
+  - name: body
+    mass:
+      value: 0.0257
+      unit: kg
+      provenance:
+        source: literature
+        reference: "Gu et al. 2026 (arXiv:2602.06811), Table A1 (flap 0 deg)"
+        uncertainty_or_range: "characterized config; flight-ready 26 g"
+    com_offset:
+      value: [0.0, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: literature
+        reference: "B origin placed at the neutral-stroke CG (Table A1, flap 0)"
+        uncertainty_or_range: "CG at (-10.94, -0.036, -8.469) mm in the paper's frame at flap 0"
+    inertia:
+      # Table A1 at flap angle 0, g mm^2 -> kg m^2, frame-converted
+      value: [[1.6230e-4, -5.42e-7, 1.1341e-6],
+              [-5.42e-7, 5.0337e-5, 3.010e-6],
+              [1.1341e-6, 3.010e-6, 2.1043e-4]]
+      unit: kg m^2
+      provenance:
+        source: literature
+        reference: "Gu et al. 2026 (arXiv:2602.06811), Table A1, flap angle 0"
+        uncertainty_or_range: "whole-robot inertia at neutral stroke; varies up to ~2.5x per stroke in reality"
+
+joints: []   # AirPulse has no articulated abdomen (bio_abdomen_fwmav remains the research target)
+
+wings:
+  - name: wing_right
+    side: right
+    span:
+      value: 0.30
+      unit: m
+      provenance:
+        source: literature
+        reference: "arXiv:2602.06811 (60 cm wingspan)"
+        uncertainty_or_range: "per-side assembly; hinge-to-tip approximated"
+    root_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 mean aerodynamic chord", uncertainty_or_range: "rectangular approximation of the swallowtail planform; area and MAC matched"}}
+    tip_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 mean aerodynamic chord", uncertainty_or_range: "rectangular approximation"}}
+    planform: rectangular
+    hinge_location:
+      value: [0.0, 0.01, -0.008]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "servo/hinge location not tabulated in the paper; estimated near the CG-height fuselage side"
+    pitch_axis_fraction:
+      value: 0.0
+      unit: "1"
+      provenance:
+        source: estimated
+        uncertainty_or_range: "leading-edge spar; AirPulse pitch is passive (no actuated axis)"
+    dihedral_angle:
+      value: 0.8727   # 50 deg
+      unit: rad
+      provenance:
+        source: literature
+        reference: "arXiv:2602.06811 (fixed 50 deg V-dihedral)"
+  - name: wing_left
+    side: left
+    span: {value: 0.30, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    root_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    tip_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    planform: rectangular
+    hinge_location:
+      value: [0.0, -0.01, -0.008]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "mirrored hinge; estimated"
+    pitch_axis_fraction: {value: 0.0, unit: "1", provenance: {source: estimated, uncertainty_or_range: "leading-edge spar"}}
+    dihedral_angle:
+      value: 0.8727
+      unit: rad
+      provenance: {source: literature, reference: "arXiv:2602.06811 (fixed 50 deg V-dihedral)"}
+
+blade_elements:
+  n_elements: 16
+  discretization: equal_span
+
+aero:
+  name: quasi_steady_blade_element
+  coefficients:
+    # Dickinson et al. 1999 (Science 284:1954) Robofly fits. NOTE: AirPulse
+    # hover runs at Re ~ 3e4 (c=0.183 m, ~3.25 Hz, 0.3 m span) — far above the
+    # fits' Robofly regime (Re ~ O(100)); flagged, not hidden.
+    cl_0:          {value: 0.225, unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "Robofly Re ~ O(100); AirPulse Re ~ 3e4: extrapolation, unverified"}}
+    cl_slope:      {value: 1.58,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cl_freq:       {value: 2.13,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cl_phase_deg:  {value: 7.20,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cd_0:          {value: 1.92,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_slope:      {value: 1.55,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_freq:       {value: 2.04,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cd_phase_deg:  {value: 9.82,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999"}}

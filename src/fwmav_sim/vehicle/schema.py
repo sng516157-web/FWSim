@@ -160,6 +160,8 @@ class WingSpec(BaseModel):
             provenance=Provenance(source="estimated", reference="M1 default placeholder"),
         )
     )
+    # per-wing stroke-plane dihedral (DR-005; default None = 0 = frozen chain)
+    dihedral_angle: Parameter | None = None  # rad; positive = tips up
 
     @field_validator("span", "root_chord", "tip_chord")
     @classmethod

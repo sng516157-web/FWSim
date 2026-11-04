@@ -1,0 +1,23 @@
+# AirPulse fixed-body hover (literature vehicle, arXiv:2602.06811).
+# Kinematics: stroke from the paper (70 deg amplitude, 3.25 Hz); pitch is
+# PASSIVE on the real robot — approximated here by a prescribed sinusoid
+# (estimated placeholder, documented in the vehicle file).
+name: m4_airpulse_hover_fixed
+kind: fixed_body
+vehicle: ../reference_vehicles/airpulse.yaml
+
+kinematics:
+  flap_amplitude: {value: 1.2217, unit: rad, provenance: {source: literature, reference: "arXiv:2602.06811 (±70 deg stroke)"}}
+  flap_frequency: {value: 3.25, unit: Hz, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+  pitch_amplitude: {value: 0.7854, unit: rad, provenance: {source: estimated, uncertainty_or_range: "passive feathering approximated by prescribed 45 deg sinusoid"}}
+  pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg phasing (frames.md conventions)"}}
+  pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "body-axis stroke plane; dihedral carried per wing"}}
+
+environment:
+  air_density: {value: 1.225, unit: kg/m^3, provenance: {source: literature, reference: "arXiv:2602.06811 methods"}}
+  kinematic_viscosity: {value: 1.460e-5, unit: m^2/s, provenance: {source: literature, reference: "arXiv:2602.06811 methods"}}
+  wind: {value: [0.0, 0.0, 0.0], unit: m/s, provenance: {source: estimated, uncertainty_or_range: "still air"}}
+
+n_wingbeats: 5
+steps_per_wingbeat: 200

@@ -127,6 +127,17 @@ side view (looking along −y_B, x forward, z down):
 
 β = 0: stroke plane contains the body x–y plane (horizontal at zero attitude).
 
+**Per-wing dihedral γ (added in DR-005, M4-prep):** an optional per-wing roll
+tilt of the stroke plane about the body x-axis, applied before β:
+
+```text
+R_B_SP_wing = Rx(σ γ) · Ry(β),   σ = −1 (right), +1 (left)
+```
+
+so γ > 0 raises both wingtips (V-dihedral, e.g. the AirPulse platform's 50°).
+γ = 0 recovers the frozen chain exactly. Mirroring is consistent:
+S Rx(−γ) S = Rx(+γ).
+
 ## 2. Wing-root frame WR (right wing)
 
 With all wing angles zero, WR_R coincides with SP: chord along +x_SP

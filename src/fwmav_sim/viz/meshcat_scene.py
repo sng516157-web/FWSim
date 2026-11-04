@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
-from fwmav_sim.core.transforms import R_B_SP, R_W_B, quat_to_matrix
+from fwmav_sim.core.transforms import R_W_B, R_B_SP_wing, quat_to_matrix
 from fwmav_sim.environment.spec import environment_from_spec
 from fwmav_sim.experiment.config import load_experiment, load_vehicle
 from fwmav_sim.kinematics.blade_element import (
@@ -138,7 +138,9 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
         wing, elements = entry["spec"], entry["elements"]
         ks = wing_state(kin, t)
         R_WR, _, _, _ = wing_chain(ks, wing.side)
-        R_world_WR = R_W_B(0.0, 0.0, 0.0) @ R_B_SP(beta) @ R_WR
+        from fwmav_sim.kinematics.blade_element import dihedral_of
+        R_world_WR = (R_W_B(0.0, 0.0, 0.0)
+                      @ R_B_SP_wing(beta, dihedral_of(wing), wing.side) @ R_WR)
         origin = NED_TO_VIEW @ np.asarray(wing.hinge_location.value, dtype=float)
 
         tf = np.eye(4)
@@ -314,7 +316,9 @@ def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,
                     kin = kin_map[wing.name]
                     ks = wing_state(kin, t_rec[i])
                     R_WR, _, _, _ = wing_chain(ks, wing.side)
-                    R_world_WR = R_wb @ R_B_SP(kin.stroke_plane_angle.value) @ R_WR
+                    from fwmav_sim.kinematics.blade_element import dihedral_of
+                    R_world_WR = (R_wb @ R_B_SP_wing(kin.stroke_plane_angle.value,
+                                  dihedral_of(wing), wing.side) @ R_WR)
                     origin_W = p_W + R_wb @ np.asarray(wing.hinge_location.value, float)
                     tf_w = np.eye(4)
                     tf_w[:3, :3] = NED_TO_VIEW @ R_world_WR

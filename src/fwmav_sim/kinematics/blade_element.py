@@ -23,11 +23,16 @@ from typing import Literal
 import numpy as np
 from scipy.optimize import brentq
 
-from fwmav_sim.core.transforms import R_B_SP, R_W_B, Rx, Ry, Rz, cross3, skew
+from fwmav_sim.core.transforms import R_W_B, R_B_SP_wing, Rx, Ry, Rz, cross3, skew
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics, WingKinematicState, wing_state
 from fwmav_sim.vehicle.schema import WingSpec
 
 # --- planform geometry --------------------------------------------------------
+
+def dihedral_of(wing: WingSpec) -> float:
+    """Per-wing stroke-plane dihedral gamma [rad] (DR-005; 0 if unset)."""
+    return wing.dihedral_angle.value if wing.dihedral_angle is not None else 0.0
+
 
 def chord_at(wing: WingSpec, s: float) -> float:
     """Local chord c(s) at span station s for the configured planform."""
@@ -226,7 +231,8 @@ class WingFrameContext:
     def __init__(self, wing, kin, t, R_wb, p_B_W, omega_W, v_B_W, v_air_W):
         self.ks = wing_state(kin, t)
         self.R_WR, self.dR_WR, self.ddR_WR, self.omega_WR = wing_chain(self.ks, wing.side)
-        self.R_world_SP = R_wb @ R_B_SP(kin.stroke_plane_angle.value)
+        self.R_world_SP = R_wb @ R_B_SP_wing(kin.stroke_plane_angle.value,
+                                             dihedral_of(wing), wing.side)
         self.R_wb = R_wb
         self.hinge_W = R_wb @ np.asarray(wing.hinge_location.value, dtype=float)
         self.p_B_W = np.asarray(p_B_W)
@@ -302,7 +308,8 @@ def element_state(
     side: Literal["right", "left"] = wing.side
     ks: WingKinematicState = wing_state(kin, t)
     R_WR, dR_WR, ddR_WR, omega_WR = wing_chain(ks, side)
-    R_world_SP = R_W_B(*body_euler) @ R_B_SP(kin.stroke_plane_angle.value)
+    R_world_SP = R_W_B(*body_euler) @ R_B_SP_wing(kin.stroke_plane_angle.value,
+                                                  dihedral_of(wing), wing.side)
 
     r_BE = np.array([element.x_c, element.s, 0.0])  # in WR coords
     hinge = np.asarray(wing.hinge_location.value, dtype=float)  # in B (frames.md §6)
