@@ -35,7 +35,7 @@ def test_pendulum_matches_sympy_reference():
         phid, ald = rng.uniform(-5.0, 5.0, 2)
         q_s = np.array([phi, al])
         qd_s = np.array([phid, ald])
-        args = (_P.m_t, _P.m_a, _P.I_t, _P.u_tx, _P.u_tz, _P.j_x, _P.j_z, _P.l_a)
+        args = (_P.m_t, _P.m_a, _P.I_t, _P.I_a, _P.u_tx, _P.u_tz, _P.j_x, _P.j_z, _P.l_a)
         checks = (
             (pend_mass_matrix(q_s, _P), ref.pend_M(phi, al, *args)),
             (pend_bias(q_s, qd_s, _P), ref.pend_bias(phi, al, phid, ald,

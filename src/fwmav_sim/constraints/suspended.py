@@ -42,6 +42,7 @@ class SuspendedPendulumParams:
     j_x: float  # abdomen joint offset from pivot, B x
     j_z: float  # abdomen joint offset from pivot, B z
     l_a: float  # joint-to-abdomen-CoM distance along the abdomen axis
+    I_a: float = 0.0  # abdomen rotary inertia about its CoM (spec §1 extension)
     g: float = 9.81
     c_a: float = 0.0  # abdomen joint damping, N m s / rad
     lock_abdomen: bool = False
@@ -50,18 +51,24 @@ class SuspendedPendulumParams:
     def from_vehicle(cls, vehicle, pivot_body_point: tuple[float, float], **kw):
         """Build from a VehicleDefinition: pivot at a body-frame point.
 
-        pivot_body_point = (x, z) in B. Uses the M2 layout: thorax root,
-        abdomen child via the revolute joint; abdomen CoM on the body x-axis
-        behind the joint (checked).
+        pivot_body_point = (x, z) in B. Walks the serial chain thorax ->
+        pitch joint -> (roll carrier) -> abdomen; the abdomen CoM must lie on
+        the body x-axis behind the pitch joint (checked). Frame semantics
+        (M3): child body frame origin = joint location; com_offset is in the
+        body frame itself.
         """
         bodies = {b.name: b for b in vehicle.bodies}
-        joint = vehicle.joints[0]
-        thorax = bodies[joint.parent_body]
-        abdomen = bodies[joint.child_body]
+        pitch = next(j for j in vehicle.joints if j.name == "abdomen_pitch")
+        thorax = bodies[pitch.parent_body]
+        # terminal body of the chain
+        child_of = {j.parent_body: j for j in vehicle.joints}
+        terminal = pitch.child_body
+        while terminal in child_of:
+            terminal = child_of[terminal].child_body
+        abdomen = bodies[terminal]
         r_t = np.asarray(thorax.com_offset.value)
-        r_a = np.asarray(abdomen.com_offset.value)
-        r_J = np.asarray(joint.location.value)
-        w = r_a - r_J  # abdomen CoM offset from joint at alpha = 0
+        w = np.asarray(abdomen.com_offset.value)  # in the abdomen frame (origin at joint)
+        r_J = np.asarray(pitch.location.value)
         if abs(w[1]) > 1e-15 or abs(w[2]) > 1e-15 or w[0] >= 0:
             raise ValueError("abdomen CoM must lie on the body x-axis behind the joint")
         return cls(
@@ -87,10 +94,10 @@ def _K(params: SuspendedPendulumParams, al: float) -> tuple[float, float]:
 def pend_mass_matrix(q_s: np.ndarray, p: SuspendedPendulumParams) -> np.ndarray:
     _, al = q_s
     K, _ = _K(p, al)
-    m_phiphi = (p.m_t * (p.u_tx**2 + p.u_tz**2) + p.I_t
+    m_phiphi = (p.m_t * (p.u_tx**2 + p.u_tz**2) + p.I_t + p.I_a
                 + p.m_a * (p.j_x**2 + p.j_z**2) + p.m_a * p.l_a**2 + 2 * p.m_a * K)
-    m_pa = p.m_a * (p.l_a**2 + K)
-    return np.array([[m_phiphi, m_pa], [m_pa, p.m_a * p.l_a**2]])
+    m_pa = p.m_a * (p.l_a**2 + K) + p.I_a
+    return np.array([[m_phiphi, m_pa], [m_pa, p.m_a * p.l_a**2 + p.I_a]])
 
 
 def pend_bias(q_s: np.ndarray, qd_s: np.ndarray, p: SuspendedPendulumParams) -> np.ndarray:
@@ -161,7 +168,7 @@ class SuspendedPendulum:
         vj = phid * np.array([-sph * p.j_x + cph * p.j_z, -cph * p.j_x - sph * p.j_z])
         va = vj + (phid + ald) * np.array([p.l_a * spa, p.l_a * cpa])
         T = (0.5 * p.m_t * float(vt @ vt) + 0.5 * p.I_t * phid**2
-             + 0.5 * p.m_a * float(va @ va))
+             + 0.5 * p.I_a * (phid + ald) ** 2 + 0.5 * p.m_a * float(va @ va))
         z_t = -sph * p.u_tx + cph * p.u_tz
         z_a = -sph * p.j_x + cph * p.j_z + p.l_a * spa
         V = -(p.m_t * z_t + p.m_a * z_a) * p.g
@@ -176,6 +183,6 @@ def pendulum_small_oscillation_frequency(p: SuspendedPendulumParams) -> float:
     x_com = (p.m_t * p.u_tx + p.m_a * (p.j_x - p.l_a)) / m
     z_com = (p.m_t * p.u_tz + p.m_a * p.j_z) / m
     d_cm = float(np.hypot(x_com, z_com))
-    I_pivot = (p.I_t + p.m_t * (p.u_tx**2 + p.u_tz**2)
+    I_pivot = (p.I_t + p.I_a + p.m_t * (p.u_tx**2 + p.u_tz**2)
                + p.m_a * ((p.j_x - p.l_a) ** 2 + p.j_z**2))
     return float(np.sqrt(m * p.g * d_cm / I_pivot))

@@ -70,11 +70,11 @@ class TestParameter:
 
 class TestBodySpec:
     def test_negative_mass_rejected(self):
-        with pytest.raises(ValidationError, match="mass must be positive"):
+        with pytest.raises(ValidationError, match="mass must be"):
             BodySpec(**_body(mass=-0.01))
 
     def test_zero_mass_rejected(self):
-        with pytest.raises(ValidationError, match="mass must be positive"):
+        with pytest.raises(ValidationError, match="mass must be"):
             BodySpec(**_body(mass=0.0))
 
     def test_non_symmetric_inertia_rejected(self):

@@ -1,4 +1,4 @@
-"""Instantaneous whole-vehicle mass properties (M2 Task 2).
+"""Instantaneous whole-vehicle mass properties (M2 Task 2; extended in M3).
 
 Implements brief §6.2 verbatim from the actual body geometry and
 configuration — never from a visualization marker:
@@ -7,65 +7,79 @@ configuration — never from a visualization marker:
     I_CoM(q) = sum_i [ R_i I_i R_i^T + m_i ( ||d_i||^2 I - d_i d_i^T ) ],
     d_i = r_i - r_CoM
 
-Configuration layout (M2; the M3 spatial model will reuse the same body
-geometry): q = [x, y, z, psi, theta, phi_r, alpha_abd] — thorax pose
-(position of the B origin, ZYX Euler attitude) plus the abdomen pitch angle
-alpha_abd (positive = tip down, frozen in reduced_model_spec.md §2).
+Configuration layout: q = [x, y, z, psi, theta, phi_r, alpha_abd, beta_abd]
+— thorax pose (position of the B origin, ZYX Euler attitude) plus one angle
+per revolute joint in `vehicle.joints` order (abdomen pitch alpha_abd about
++y, then abdomen roll beta_abd about the post-pitch x; signs per
+reduced_model_spec.md §2 and the vehicle YAML comments).
 
-Body offsets: BodySpec.com_offset is the CoM position in the *parent* frame at
-zero joint configuration; a revolute joint rotates the child about the joint
-axis at the joint location (JointSpec.location, axis in parent frame).
+Frame semantics (M3): a joint's child body frame origin sits at
+JointSpec.location (in the parent frame); BodySpec.com_offset is the CoM in
+the body frame itself. Joint rotations compose serially along the chain.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from fwmav_sim.core.transforms import R_W_B, Ry
+from fwmav_sim.core.transforms import R_W_B, Rx, Ry, Rz
 
 G = 9.81  # gravity magnitude, m/s^2; world vector is [0, 0, +G] (NED, frames.md §1.1)
 
-#: layout indices of the M2 configuration vector
+#: layout indices of the configuration vector
 Q_POS = slice(0, 3)
 Q_EULER = slice(3, 6)  # psi, theta, phi_r
-Q_ALPHA = 6
+N_BASE = 6
+
+_AXIS_ROT = {"x": Rx, "y": Ry, "z": Rz}
+
+
+def _axis_key(axis: list[float]) -> str:
+    a = np.asarray(axis, dtype=float)
+    for name, ref in (("x", [1, 0, 0]), ("y", [0, 1, 0]), ("z", [0, 0, 1])):
+        if np.allclose(a, ref):
+            return name
+    raise NotImplementedError(f"joint axis must be a coordinate axis, got {axis}")
+
+
+def body_transforms(q: np.ndarray, vehicle) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """(R_W_body, origin_W) of every body frame at configuration q."""
+    q = np.asarray(q, dtype=float)
+    parents = {j.child_body: j for j in vehicle.joints}
+    child_of = {j.parent_body: j for j in vehicle.joints}
+    root = next(b.name for b in vehicle.bodies if b.name not in parents)
+
+    out: dict[str, tuple[np.ndarray, np.ndarray]] = {
+        root: (R_W_B(*q[Q_EULER]), q[Q_POS].copy())
+    }
+    # walk the chain from the root (each body has at most one child joint)
+    current = root
+    j_index = 0
+    while current in child_of:
+        joint = child_of[current]
+        R_p, o_p = out[current]
+        axis_rot = _AXIS_ROT[_axis_key(joint.axis)]
+        angle = q[N_BASE + j_index]
+        R_c = R_p @ axis_rot(angle)
+        o_c = o_p + R_p @ np.asarray(joint.location.value, dtype=float)
+        out[joint.child_body] = (R_c, o_c)
+        current = joint.child_body
+        j_index += 1
+    return out
 
 
 def body_com_positions(q: np.ndarray, vehicle) -> dict[str, np.ndarray]:
     """CoM position of every body in the world frame at configuration q."""
-    q = np.asarray(q, dtype=float)
-    p_B = q[Q_POS]
-    R_wb = R_W_B(*q[Q_EULER])
-
-    parents = {j.child_body: j for j in vehicle.joints}
-    root = next(b.name for b in vehicle.bodies if b.name not in parents)
-
-    out: dict[str, np.ndarray] = {}
-    for body in vehicle.bodies:
-        if body.name == root:
-            out[body.name] = p_B + R_wb @ np.asarray(body.com_offset.value)
-        else:
-            # single-chain: child of the root via one revolute joint (M2 scope)
-            j = parents[body.name]
-            r_J = np.asarray(j.location.value)
-            r_com0 = np.asarray(body.com_offset.value)
-            if not np.allclose(j.axis, [0, 1, 0]):
-                raise NotImplementedError("M2 supports revolute joints about +y_B only")
-            alpha = q[Q_ALPHA]
-            out[body.name] = p_B + R_wb @ (r_J + Ry(alpha) @ (r_com0 - r_J))
-    return out
+    tf = body_transforms(q, vehicle)
+    return {
+        b.name: tf[b.name][1] + tf[b.name][0] @ np.asarray(b.com_offset.value, dtype=float)
+        for b in vehicle.bodies
+    }
 
 
 def body_orientations(q: np.ndarray, vehicle) -> dict[str, np.ndarray]:
     """World-frame orientation R_W_body of every body at configuration q."""
-    q = np.asarray(q, dtype=float)
-    R_wb = R_W_B(*q[Q_EULER])
-    parents = {j.child_body: j for j in vehicle.joints}
-    root = next(b.name for b in vehicle.bodies if b.name not in parents)
-    out: dict[str, np.ndarray] = {}
-    for body in vehicle.bodies:
-        out[body.name] = R_wb if body.name == root else R_wb @ Ry(q[Q_ALPHA])
-    return out
+    return {name: R for name, (R, _) in body_transforms(q, vehicle).items()}
 
 
 def com(q: np.ndarray, vehicle) -> np.ndarray:

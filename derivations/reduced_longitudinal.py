@@ -31,7 +31,7 @@ OUT = REPO / "src" / "fwmav_sim" / "dynamics" / "_reduced_reference.py"
 # ---------------------------------------------------------------- free model
 x, z, th, al = sp.symbols("x z theta alpha_abd", real=True)
 xd, zd, thd, ald = sp.symbols("xd zd theta_d alpha_abd_d", real=True)
-m_t, m_a, I_t, d, l_a, g = sp.symbols("m_t m_a I_t d l_a g", positive=True)
+m_t, m_a, I_t, I_a, d, l_a, g = sp.symbols("m_t m_a I_t I_a d l_a g", positive=True)
 
 sth, cth = sp.sin(th), sp.cos(th)
 stha, ctha = sp.sin(th + al), sp.cos(th + al)
@@ -44,6 +44,7 @@ xa_d = sp.diff(xa, x) * xd + sp.diff(xa, z) * zd + sp.diff(xa, th) * thd + sp.di
 za_d = sp.diff(za, x) * xd + sp.diff(za, z) * zd + sp.diff(za, th) * thd + sp.diff(za, al) * ald
 
 T_free = (sp.Rational(1, 2) * m_t * (xd**2 + zd**2) + sp.Rational(1, 2) * I_t * thd**2
+          + sp.Rational(1, 2) * I_a * (thd + ald)**2
           + sp.Rational(1, 2) * m_a * (xa_d**2 + za_d**2))
 V_free = -(m_t * z + m_a * za) * g  # z down, g = +9.81 (frames.md section 1.1)
 
@@ -96,6 +97,7 @@ rt_xd, rt_zd = _diff2(rt_x, qp, qpd), _diff2(rt_z, qp, qpd)
 ra_xd, ra_zd = _diff2(ra_x, qp, qpd), _diff2(ra_z, qp, qpd)
 
 T_pend = (sp.Rational(1, 2) * m_t * (rt_xd**2 + rt_zd**2) + sp.Rational(1, 2) * I_t * phid**2
+          + sp.Rational(1, 2) * I_a * (phid + ald)**2
           + sp.Rational(1, 2) * m_a * (ra_xd**2 + ra_zd**2))
 V_pend = -(m_t * rt_z + m_a * ra_z) * g
 
@@ -138,7 +140,7 @@ def _fmt_vector(name, v, args, doc):
 #: symbolically generated blocks. Inserted verbatim into the generated module.
 _A_LIN_ASSEMBLY = '''
 def free_A_lin(theta_0, alpha_abd_0, b_x, b_z, F_x, F_z, tau_act,
-               m_t, m_a, I_t, d, l_a, g):
+               m_t, m_a, I_t, I_a, d, l_a, g):
     """Linearized state matrix A (8x8) of the free reduced model about
     (q0 = [x, z, theta_0, alpha_abd_0], qd = 0) with a point force (F_x, F_z)
     in the BODY frame B applied at (b_x, b_z) in B and actuator torque tau_act
@@ -148,15 +150,15 @@ def free_A_lin(theta_0, alpha_abd_0, b_x, b_z, F_x, F_z, tau_act,
     (bias is quadratic in qd, so the velocity blocks vanish at qd = 0;
     damping, when configured, is added by the runtime model).
     """
-    M0 = free_M(theta_0, alpha_abd_0, m_t, m_a, I_t, d, l_a)
+    M0 = free_M(theta_0, alpha_abd_0, m_t, m_a, I_t, I_a, d, l_a)
     M0inv = np.linalg.inv(M0)
     h = free_Q_point(theta_0, b_x, b_z, F_x, F_z) + np.array([0.0, 0.0, 0.0, tau_act]) \\
-        - free_G(theta_0, alpha_abd_0, m_t, m_a, I_t, d, l_a, g)
-    dG = free_A_lin_dG_dq(theta_0, alpha_abd_0, m_t, m_a, I_t, d, l_a, g)
+        - free_G(theta_0, alpha_abd_0, m_t, m_a, I_t, I_a, d, l_a, g)
+    dG = free_A_lin_dG_dq(theta_0, alpha_abd_0, m_t, m_a, I_t, I_a, d, l_a, g)
     dQ = free_A_lin_dQ_dq(theta_0, b_x, b_z, F_x, F_z)
     qdd0 = M0inv @ h
-    dM = [free_A_lin_dM_dtheta(theta_0, alpha_abd_0, m_t, m_a, I_t, d, l_a),
-          free_A_lin_dM_dalpha(theta_0, alpha_abd_0, m_t, m_a, I_t, d, l_a)]
+    dM = [free_A_lin_dM_dtheta(theta_0, alpha_abd_0, m_t, m_a, I_t, I_a, d, l_a),
+          free_A_lin_dM_dalpha(theta_0, alpha_abd_0, m_t, m_a, I_t, I_a, d, l_a)]
     A = np.zeros((8, 8))
     A[:4, 4:] = np.eye(4)
     bottom = M0inv @ (dQ - dG)
@@ -200,7 +202,7 @@ def main() -> int:
         "Source: docs/conventions/reduced_model_spec.md (Euler-Lagrange, SymPy).\n"
         '"""\n\nfrom __future__ import annotations\n\nimport math\n\nimport numpy as np\n\n\n'
     )
-    free_args = "theta, alpha_abd, m_t, m_a, I_t, d, l_a"
+    free_args = "theta, alpha_abd, m_t, m_a, I_t, I_a, d, l_a"
     free_args_g = free_args + ", g"
     free_vel_args = "theta, alpha_abd, theta_d, alpha_abd_d, m_t, m_a, d, l_a"
     parts = [header]
@@ -219,7 +221,7 @@ def main() -> int:
                              "Generalized force of a point force (F_x, F_z) in the BODY frame B "
                              "applied at (b_x, b_z) in B."))
     parts.append("\n")
-    pend_args = "phi_p, alpha_abd, m_t, m_a, I_t, u_tx, u_tz, j_x, j_z, l_a"
+    pend_args = "phi_p, alpha_abd, m_t, m_a, I_t, I_a, u_tx, u_tz, j_x, j_z, l_a"
     parts.append(_fmt_matrix("pend_M", M_p, pend_args,
                              "Mass matrix of the suspended-pendulum model;"
                              " q_s = [phi_p, alpha_abd]."))

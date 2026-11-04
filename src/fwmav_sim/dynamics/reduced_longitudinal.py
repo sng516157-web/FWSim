@@ -38,6 +38,7 @@ class ReducedModelParams:
     I_t: float  # thorax pitch inertia about its CoM, kg m^2
     d: float  # abdomen joint distance behind the thorax reference point, m
     l_a: float  # joint-to-abdomen-CoM distance, m
+    I_a: float = 0.0  # abdomen rotary inertia about its CoM (spec §1 extension)
     g: float = 9.81
     c_lin: float = 0.0  # linear damping on x_dot, z_dot, N s / m
     c_ang: float = 0.0  # angular damping on theta_dot, N m s / rad
@@ -46,20 +47,27 @@ class ReducedModelParams:
 
     @classmethod
     def from_vehicle(cls, vehicle, **kw) -> ReducedModelParams:
-        """Map a VehicleDefinition (thorax + abdomen via one revolute pitch
-        joint) onto the reduced-model parameters (reduced_model_spec.md §1-2)."""
+        """Map a VehicleDefinition (thorax + abdomen via the pitch joint,
+        possibly through a massless roll carrier) onto the reduced-model
+        parameters (reduced_model_spec.md §1-2). Frame semantics (M3): child
+        body frame origin = joint location; com_offset in the body frame."""
         bodies = {b.name: b for b in vehicle.bodies}
-        joint = next(j for j in vehicle.joints if j.type == "revolute")
+        joint = next(j for j in vehicle.joints if j.name == "abdomen_pitch")
         thorax = bodies[joint.parent_body]
-        abdomen = bodies[joint.child_body]
+        child_of = {j.parent_body: j for j in vehicle.joints}
+        terminal = joint.child_body
+        while terminal in child_of:
+            terminal = child_of[terminal].child_body
+        abdomen = bodies[terminal]
         r_J = np.asarray(joint.location.value, dtype=float)
-        w = np.asarray(abdomen.com_offset.value, dtype=float) - r_J
+        w = np.asarray(abdomen.com_offset.value, dtype=float)  # relative to the joint
         if abs(w[1]) > 1e-15 or abs(w[2]) > 1e-15 or w[0] >= 0:
             raise ValueError("abdomen CoM must lie on the body x-axis behind the joint")
         return cls(
             m_t=thorax.mass.value,
             m_a=abdomen.mass.value,
             I_t=float(np.asarray(thorax.inertia.value, dtype=float)[1, 1]),
+            I_a=float(np.asarray(abdomen.inertia.value, dtype=float)[1, 1]),
             d=float(-r_J[0]),  # joint behind the thorax reference point => r_Jx < 0
             l_a=float(-w[0]),
             **kw,
@@ -76,10 +84,10 @@ def mass_matrix(q: np.ndarray, p: ReducedModelParams) -> np.ndarray:
         [p.m_t + m_a, 0.0, m_a * (d * sth + l_a * stha), m_a * l_a * stha],
         [0.0, p.m_t + m_a, m_a * (d * cth + l_a * ctha), m_a * l_a * ctha],
         [m_a * (d * sth + l_a * stha), m_a * (d * cth + l_a * ctha),
-         p.I_t + m_a * (d * d + l_a * l_a + 2 * d * l_a * np.cos(al)),
-         m_a * (l_a * l_a + d * l_a * np.cos(al))],
-        [m_a * l_a * stha, m_a * l_a * ctha, m_a * (l_a * l_a + d * l_a * np.cos(al)),
-         m_a * l_a * l_a],
+         p.I_t + p.I_a + m_a * (d * d + l_a * l_a + 2 * d * l_a * np.cos(al)),
+         p.I_a + m_a * (l_a * l_a + d * l_a * np.cos(al))],
+        [m_a * l_a * stha, m_a * l_a * ctha, p.I_a + m_a * (l_a * l_a + d * l_a * np.cos(al)),
+         p.I_a + m_a * l_a * l_a],
     ])
 
 

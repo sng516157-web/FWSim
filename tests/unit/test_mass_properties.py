@@ -1,4 +1,5 @@
-"""§11.1 CoM / parallel-axis inertia / joint-limit tests (M2 Tasks 1-2, 6).
+"""§11.1 CoM / parallel-axis inertia / joint-limit tests (M2 Tasks 1-2, 6;
+updated in M3 for the serial pitch->roll chain and joint-centred frames).
 
 Hand-computed configurations: (a) symmetric neutral, (b) abdomen deflected
 30 deg, (c) point-mass limit. Plus inertia symmetric-PD on random
@@ -32,20 +33,31 @@ def _vehicle() -> VehicleDefinition:
              "com_offset": {"value": [0.0, 0.0, 0.0], "unit": "m", "provenance": _PROV},
              "inertia": {"value": [[_IT, 0, 0], [0, _IT, 0], [0, 0, _IT]],
                          "unit": "kg m^2", "provenance": _PROV}},
+            {"name": "abdomen_roll_carrier",
+             "mass": {"value": 0.0, "unit": "kg", "provenance": _PROV},
+             "com_offset": {"value": [0.0, 0.0, 0.0], "unit": "m", "provenance": _PROV},
+             "inertia": {"value": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                         "unit": "kg m^2", "provenance": _PROV},
+             "massless": True},
             {"name": "abdomen",
              "mass": {"value": _M_A, "unit": "kg", "provenance": _PROV},
-             "com_offset": {"value": [-(_D + _L_A), 0.0, 0.0], "unit": "m", "provenance": _PROV},
+             "com_offset": {"value": [-_L_A, 0.0, 0.0], "unit": "m", "provenance": _PROV},
              "inertia": {"value": [[_IA, 0, 0], [0, _IA, 0], [0, 0, _IA]],
                          "unit": "kg m^2", "provenance": _PROV}},
         ],
-        "joints": [{
-            "name": "abdomen_pitch", "type": "revolute",
-            "parent_body": "thorax", "child_body": "abdomen",
-            "axis": [0.0, 1.0, 0.0],
-            "location": {"value": [-_D, 0.0, 0.0], "unit": "m", "provenance": _PROV},
-            "limits": [-0.6, 0.6],
-            "damping": {"value": 1e-6, "unit": "N m s / rad", "provenance": _PROV},
-        }],
+        "joints": [
+            {"name": "abdomen_pitch", "type": "revolute",
+             "parent_body": "thorax", "child_body": "abdomen_roll_carrier",
+             "axis": [0.0, 1.0, 0.0],
+             "location": {"value": [-_D, 0.0, 0.0], "unit": "m", "provenance": _PROV},
+             "limits": [-0.6, 0.6],
+             "damping": {"value": 1e-6, "unit": "N m s / rad", "provenance": _PROV}},
+            {"name": "abdomen_roll", "type": "revolute",
+             "parent_body": "abdomen_roll_carrier", "child_body": "abdomen",
+             "axis": [1.0, 0.0, 0.0],
+             "location": {"value": [0.0, 0.0, 0.0], "unit": "m", "provenance": _PROV},
+             "limits": [-0.6, 0.6]},
+        ],
         "wings": [],
         "aero": {"name": "none", "coefficients": {}},
     })
@@ -53,8 +65,9 @@ def _vehicle() -> VehicleDefinition:
     return v
 
 
-def _q(alpha_abd: float = 0.0, x=0.0, y=0.0, z=0.0, psi=0.0, theta=0.0, phi_r=0.0):
-    return np.array([x, y, z, psi, theta, phi_r, alpha_abd])
+def _q(alpha_abd: float = 0.0, beta_abd: float = 0.0, x=0.0, y=0.0, z=0.0,
+       psi=0.0, theta=0.0, phi_r=0.0):
+    return np.array([x, y, z, psi, theta, phi_r, alpha_abd, beta_abd])
 
 
 def test_com_hand_computed():
@@ -63,15 +76,18 @@ def test_com_hand_computed():
     expected = np.array([-_M_A * (_D + _L_A) / (_M_T + _M_A), 0.0, 0.0])
     np.testing.assert_allclose(com(_q(0.0), v), expected, atol=1e-15)
 
-    # (b) abdomen deflected 30 deg: abdomen CoM at r_J + Ry(a) (r_com - r_J)
+    # (b) abdomen deflected 30 deg about +y (tip down, frozen sign rule)
     a = np.deg2rad(30.0)
-    r_a = np.array([-_D - _L_A * np.cos(a), 0.0, _L_A * np.sin(a)])  # tip down = +z
+    r_a = np.array([-_D - _L_A * np.cos(a), 0.0, _L_A * np.sin(a)])
     expected = _M_A / (_M_T + _M_A) * r_a
     np.testing.assert_allclose(com(_q(a), v), expected, atol=1e-15)
 
-    # translated/rotated body: com rides along
-    q = _q(0.2, x=0.1, z=-0.2, theta=0.3)
-    np.testing.assert_allclose(com(q, v)[:1], com(q, v)[:1], atol=1e-15)  # sanity
+    # (b2) roll about the post-pitch x-axis: the abdomen CoM lies ON the roll
+    # axis (com_offset = [-L, 0, 0]), so roll leaves the CoM invariant, with
+    # or without pitch
+    b = np.deg2rad(20.0)
+    np.testing.assert_allclose(com(_q(0.0, b), v), com(_q(0.0, 0.0), v), atol=1e-15)
+    np.testing.assert_allclose(com(_q(a, b), v), com(_q(a, 0.0), v), atol=1e-15)
 
 
 def test_inertia_parallel_axis_hand_computed():
@@ -85,12 +101,12 @@ def test_inertia_parallel_axis_hand_computed():
         I_exp += m * (float(d @ d) * np.eye(3) - np.outer(d, d))
     np.testing.assert_allclose(inertia_about_com(_q(0.0), v), I_exp, atol=1e-15)
 
-    # (c) point-mass limit: negligible body inertias, compare to pure
-    # parallel-axis form of two point masses
+    # (c) point-mass limit: negligible body inertias
     eps = 1e-12
     v_pm = v.model_copy(deep=True)
     for b in v_pm.bodies:
-        b.inertia.value = [[eps, 0, 0], [0, eps, 0], [0, 0, eps]]
+        if not b.massless:
+            b.inertia.value = [[eps, 0, 0], [0, eps, 0], [0, 0, eps]]
     a = np.deg2rad(30.0)
     q = _q(a)
     r_com = com(q, v_pm)
@@ -105,9 +121,10 @@ def test_inertia_symmetric_positive_definite_random_configs():
     v = _vehicle()
     rng = np.random.default_rng(11)
     for _ in range(100):
-        q = _q(rng.uniform(-0.6, 0.6), **{"psi": rng.uniform(-np.pi, np.pi),
-                                          "theta": rng.uniform(-1.4, 1.4),
-                                          "phi_r": rng.uniform(-np.pi, np.pi)})
+        q = _q(rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6),
+               **{"psi": rng.uniform(-np.pi, np.pi),
+                  "theta": rng.uniform(-1.4, 1.4),
+                  "phi_r": rng.uniform(-np.pi, np.pi)})
         I_mat = inertia_about_com(q, v)
         np.testing.assert_allclose(I_mat, I_mat.T, atol=1e-18)
         assert np.all(np.linalg.eigvalsh(I_mat) > 0)

@@ -29,6 +29,26 @@ bodies:
       provenance:
         source: estimated
         uncertainty_or_range: "placeholder pending paper parameter table"
+  - name: abdomen_roll_carrier
+    mass:
+      value: 0.0
+      unit: kg
+      provenance:
+        source: estimated
+        uncertainty_or_range: "massless frame carrier for the serial pitch->roll chain (M3)"
+    com_offset:
+      value: [0.0, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "carrier frame at the joint location"
+    inertia:
+      value: [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+      unit: kg m^2
+      provenance:
+        source: estimated
+        uncertainty_or_range: "massless"
+    massless: true
   - name: abdomen
     mass:
       value: 0.004
@@ -37,11 +57,11 @@ bodies:
         source: estimated
         uncertainty_or_range: "electronics concentrated in abdomen (paper concept); value pending"
     com_offset:
-      value: [-0.03, 0.0, 0.0]
+      value: [-0.015, 0.0, 0.0]
       unit: m
       provenance:
         source: estimated
-        uncertainty_or_range: "30 mm behind thorax reference point; pending"
+        uncertainty_or_range: "15 mm behind the joint, in the abdomen frame; pending"
     inertia:
       value: [[5.0e-7, 0.0, 0.0], [0.0, 5.0e-7, 0.0], [0.0, 0.0, 5.0e-7]]
       unit: kg m^2
@@ -53,7 +73,7 @@ joints:
   - name: abdomen_pitch
     type: revolute
     parent_body: thorax
-    child_body: abdomen
+    child_body: abdomen_roll_carrier
     axis: [0.0, 1.0, 0.0]   # +y_B: positive alpha_abd tips the abdomen down (frames.md / reduced_model_spec.md)
     location:
       value: [-0.015, 0.0, 0.0]
@@ -62,6 +82,25 @@ joints:
         source: estimated
         uncertainty_or_range: "joint 15 mm behind thorax reference point; pending"
     limits: [-0.785398, 0.785398]   # +/-45 deg, placeholder
+    damping:
+      value: 1.0e-6
+      unit: N m s / rad
+      provenance:
+        source: estimated
+        uncertainty_or_range: "placeholder"
+  - name: abdomen_roll
+    type: revolute
+    parent_body: abdomen_roll_carrier
+    child_body: abdomen
+    axis: [1.0, 0.0, 0.0]   # +x of the post-pitch carrier frame; positive beta_abd rolls
+                            # the abdomen about the abdomen x-axis (pinned in M3; was an M0 watch item)
+    location:
+      value: [0.0, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "roll joint coincident with pitch joint"
+    limits: [-0.785398, 0.785398]   # placeholder
     damping:
       value: 1.0e-6
       unit: N m s / rad

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Provenance(BaseModel):
@@ -66,7 +66,12 @@ class Matrix3Parameter(BaseModel):
 
 
 class BodySpec(BaseModel):
-    """A rigid body: mass, CoM offset in the body frame, inertia about the CoM."""
+    """A rigid body: mass, CoM offset in the body frame, inertia about the CoM.
+
+    ``massless: true`` marks an intermediate frame carrier (e.g. the abdomen
+    roll carrier between the pitch and roll joints); it requires exactly zero
+    mass and zero inertia and is the only allowed exception.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -74,23 +79,35 @@ class BodySpec(BaseModel):
     mass: Parameter
     com_offset: Vector3Parameter  # r of the body CoM in the parent frame, m
     inertia: Matrix3Parameter  # about the body CoM, expressed in the body frame, kg m^2
+    massless: bool = False
 
     @field_validator("mass")
     @classmethod
     def _mass_positive(cls, m: Parameter) -> Parameter:
-        if m.value <= 0:
-            raise ValueError("body mass must be positive")
+        if m.value < 0:
+            raise ValueError("body mass must be non-negative")
         return m
 
     @field_validator("inertia")
     @classmethod
-    def _inertia_symmetric_positive_definite(cls, i: Matrix3Parameter) -> Matrix3Parameter:
+    def _inertia_symmetric(cls, i: Matrix3Parameter) -> Matrix3Parameter:
         mat = np.asarray(i.value, dtype=float)
         if not np.allclose(mat, mat.T, atol=1e-15):
             raise ValueError("inertia tensor must be symmetric")
-        if not np.all(np.linalg.eigvalsh(mat) > 0):
-            raise ValueError("inertia tensor must be positive definite")
         return i
+
+    @model_validator(mode="after")
+    def _massless_consistent(self):
+        eig = np.linalg.eigvalsh(np.asarray(self.inertia.value, dtype=float))
+        if self.massless:
+            if self.mass.value != 0.0 or np.asarray(self.inertia.value).any():
+                raise ValueError("massless body must have exactly zero mass and inertia")
+        else:
+            if self.mass.value <= 0:
+                raise ValueError("body mass must be positive (or set massless: true)")
+            if not np.all(eig > 0):
+                raise ValueError("inertia tensor must be positive definite")
+        return self
 
 
 class JointSpec(BaseModel):

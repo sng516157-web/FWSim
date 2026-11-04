@@ -30,10 +30,10 @@ def test_reduced_model_matches_sympy_reference():
         q = np.array([0.0, 0.0, th, al])
         qd = np.array([0.0, 0.0, thd, ald])
         checks = (
-            (mass_matrix(q, _P), ref.free_M(th, al, _P.m_t, _P.m_a, _P.I_t, _P.d, _P.l_a)),
+            (mass_matrix(q, _P), ref.free_M(th, al, _P.m_t, _P.m_a, _P.I_t, _P.I_a, _P.d, _P.l_a)),
             (bias_vector(q, qd, _P), ref.free_bias(th, al, thd, ald, _P.m_t, _P.m_a, _P.d, _P.l_a)),
             (gravity_vector(q, _P),
-             ref.free_G(th, al, _P.m_t, _P.m_a, _P.I_t, _P.d, _P.l_a, _P.g)),
+             ref.free_G(th, al, _P.m_t, _P.m_a, _P.I_t, _P.I_a, _P.d, _P.l_a, _P.g)),
         )
         for got, want in checks:
             scale = max(float(np.abs(want).max()), 1e-12)
@@ -74,7 +74,7 @@ def test_linearized_vs_numerical_jacobian():
     # generalized_force takes body-frame forces; at theta=0 body == world
     forces = [((x_com, 0.0), F0)]
     A_ref = ref.free_A_lin(0.0, 0.0, x_com, 0.0, *F0, 0.0,
-                           _P.m_t, _P.m_a, _P.I_t, _P.d, _P.l_a, _P.g)
+                           _P.m_t, _P.m_a, _P.I_t, _P.I_a, _P.d, _P.l_a, _P.g)
 
     model = ReducedAnalyticalModel(_P)
     x0 = np.zeros(8)
