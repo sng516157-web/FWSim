@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from fwmav_sim.core.transforms import Rx, Ry, Rz, quat_to_matrix, skew
+from fwmav_sim.core.transforms import Rx, Ry, Rz, cross3, quat_to_matrix, skew
 
 
 def xform_motion(R: np.ndarray, p: np.ndarray) -> np.ndarray:
@@ -52,14 +52,14 @@ def cross_motion(v: np.ndarray, m: np.ndarray) -> np.ndarray:
     """Spatial cross product [ω;v] x [mω;mv] = [ωxmω + vxmv; ωxmv]."""
     w, vv = v[:3], v[3:]
     mw, mv = m[:3], m[3:]
-    return np.concatenate([np.cross(w, mw) + np.cross(vv, mv), np.cross(w, mv)])
+    return np.concatenate([cross3(w, mw) + cross3(vv, mv), cross3(w, mv)])
 
 
 def cross_force(v: np.ndarray, f: np.ndarray) -> np.ndarray:
     """Spatial cross-force [ω;v] x* [n;f] = [ωxn + vxf; ωxf]."""
     w, vv = v[:3], v[3:]
     n, ff = f[:3], f[3:]
-    return np.concatenate([np.cross(w, n) + np.cross(vv, ff), np.cross(w, ff)])
+    return np.concatenate([cross3(w, n) + cross3(vv, ff), cross3(w, ff)])
 
 
 def spatial_inertia(mass: float, com: np.ndarray, I_c: np.ndarray) -> np.ndarray:
@@ -273,8 +273,16 @@ class ArticulatedModel:
 
     def forward_dynamics(self, q: np.ndarray, u: np.ndarray, tau: np.ndarray,
                          f_ext: dict[str, np.ndarray] | None = None,
-                         gravity: bool = True) -> np.ndarray:
-        """Solve M u_dot = tau + Q_ext - bias (direct 8x8 factorization)."""
+                         gravity: bool = True,
+                         prescribed_joints: dict[int, tuple[float, float]] | None = None,
+                         ) -> tuple[np.ndarray, np.ndarray]:
+        """Solve M u_dot = tau + Q_ext - bias (direct 8x8 factorization).
+
+        prescribed_joints: {joint_index: (qd, qdd)} — the joint motion is
+        imposed (brief §6.4 stages 1-2); the free DoFs are solved by
+        partition and the required actuator torque is returned.
+        Returns (u_dot, tau_full) with tau_full = tau + reaction torques.
+        """
         M = self.crba(q)
         Q_ext = np.zeros(self.nv)
         if f_ext:
@@ -283,7 +291,24 @@ class ArticulatedModel:
                 if name in f_ext:
                     Q_ext += Js[i].T @ np.asarray(f_ext[name], dtype=float)
         rhs = np.asarray(tau, dtype=float) + Q_ext - self.bias(q, u, gravity=gravity)
-        return np.linalg.solve(M, rhs)
+
+        if not prescribed_joints:
+            return np.linalg.solve(M, rhs), np.asarray(tau, dtype=float)
+
+        pres = sorted(prescribed_joints)
+        free = [i for i in range(self.nv) if i not in [6 + j for j in pres]]
+        ud = np.zeros(self.nv)
+        for j in pres:
+            ud[6 + j] = prescribed_joints[j][1]
+        Mff = M[np.ix_(free, free)]
+        rhs_f = rhs[free] - M[np.ix_(free, [6 + j for j in pres])] @ ud[[6 + j for j in pres]]
+        ud[free] = np.linalg.solve(Mff, rhs_f)
+        # required actuator torque: reaction = M qdd + bias - Q_ext - tau_applied
+        tau_full = np.asarray(tau, dtype=float).copy()
+        reaction = (M @ ud - rhs)[ [6 + j for j in pres] ] + np.asarray(tau)[[6 + j for j in pres]]
+        for k, j in enumerate(pres):
+            tau_full[6 + j] = float(reaction[k])
+        return ud, tau_full
 
     def reaction_torques(self, q: np.ndarray, u: np.ndarray, qdd: np.ndarray,
                          f_ext: dict[str, np.ndarray] | None = None) -> np.ndarray:

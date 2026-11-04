@@ -23,7 +23,7 @@ from typing import Literal
 import numpy as np
 from scipy.optimize import brentq
 
-from fwmav_sim.core.transforms import R_B_SP, R_W_B, Rx, Ry, Rz, skew
+from fwmav_sim.core.transforms import R_B_SP, R_W_B, Rx, Ry, Rz, cross3, skew
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics, WingKinematicState, wing_state
 from fwmav_sim.vehicle.schema import WingSpec
 
@@ -210,6 +210,77 @@ class ElementState:
     # dataclass extended, documented in the M1 report):
     pitch_rate: float  # theta_w_dot [rad/s]; identical command for both wings
     pitch_axis_fraction: float  # x_hat_0: pitch axis location, 0 = leading edge
+
+
+class WingFrameContext:
+    """Per-(wing, t) shared kinematic quantities for element evaluation.
+
+    The frozen transform chain and its rates are identical for all elements
+    of a wing; computing them once per wing per call (not per element) cuts
+    the per-element cost by the element count.
+    """
+
+    __slots__ = ("ks", "R_WR", "dR_WR", "ddR_WR", "omega_WR", "R_world_SP",
+                 "R_wb", "hinge_W", "omega_W", "v_B_W", "v_air_W", "p_B_W")
+
+    def __init__(self, wing, kin, t, R_wb, p_B_W, omega_W, v_B_W, v_air_W):
+        self.ks = wing_state(kin, t)
+        self.R_WR, self.dR_WR, self.ddR_WR, self.omega_WR = wing_chain(self.ks, wing.side)
+        self.R_world_SP = R_wb @ R_B_SP(kin.stroke_plane_angle.value)
+        self.R_wb = R_wb
+        self.hinge_W = R_wb @ np.asarray(wing.hinge_location.value, dtype=float)
+        self.p_B_W = np.asarray(p_B_W)
+        self.omega_W = np.asarray(omega_W)
+        self.v_B_W = np.asarray(v_B_W)
+        self.v_air_W = np.zeros(3) if v_air_W is None else np.asarray(v_air_W, dtype=float)
+
+
+def element_state_ctx(wing: WingSpec, element: BladeElement, ctx: WingFrameContext,
+                      nu: float) -> ElementState:
+    """Element state from a shared per-wing context (see element_state_free_body)."""
+    side: Literal["right", "left"] = wing.side
+    r_BE = np.array([element.x_c, element.s, 0.0])
+    r_rel_B = ctx.R_wb @ np.asarray(wing.hinge_location.value, float) \
+        + ctx.R_world_SP @ (ctx.R_WR @ r_BE)
+    r_W = ctx.p_B_W + r_rel_B
+    R_W_BE = ctx.R_world_SP @ ctx.R_WR
+    v_flap = ctx.R_world_SP @ (ctx.dR_WR @ r_BE)
+    v_W = ctx.v_B_W + cross3(ctx.omega_W, r_rel_B) + v_flap
+    a_W = (cross3(ctx.omega_W, cross3(ctx.omega_W, r_rel_B))
+           + 2.0 * cross3(ctx.omega_W, v_flap)
+           + ctx.R_world_SP @ (ctx.ddR_WR @ r_BE))
+    omega_el_W = ctx.omega_W + ctx.R_world_SP @ (ctx.R_WR @ ctx.omega_WR)
+    v_rel = v_W - ctx.v_air_W
+    chord_dir = R_W_BE @ np.array([1.0, 0.0, 0.0])
+    n_phys = R_W_BE @ np.array([0.0, 0.0, 1.0 if side == "right" else -1.0])
+    alpha = float(np.arctan2(v_rel @ n_phys, v_rel @ chord_dir))
+    speed = float(np.linalg.norm(v_rel))
+    return ElementState(
+        r_W=r_W, v_W=v_W, a_W=a_W, R_W_BE=R_W_BE, omega_W=omega_el_W,
+        chord=element.chord, area=element.area, alpha=alpha,
+        reynolds=speed * element.chord / nu, side=side,
+        pitch_rate=ctx.ks.theta_w_dot,
+        pitch_axis_fraction=wing.pitch_axis_fraction.value,
+    )
+
+
+def element_state_free_body(
+    wing: WingSpec,
+    element: BladeElement,
+    kin: PrescribedWingKinematics,
+    t: float,
+    nu: float,
+    R_wb: np.ndarray,
+    p_B_W: np.ndarray,
+    omega_W: np.ndarray,
+    v_B_W: np.ndarray,
+    v_air_W: np.ndarray | None = None,
+) -> ElementState:
+    """Element kinematic state for a MOVING body (M3 Task 4) — convenience
+    wrapper building a fresh WingFrameContext; bulk callers should build the
+    context once per wing per timestep and call element_state_ctx."""
+    ctx = WingFrameContext(wing, kin, t, R_wb, p_B_W, omega_W, v_B_W, v_air_W)
+    return element_state_ctx(wing, element, ctx, nu)
 
 
 def element_state(

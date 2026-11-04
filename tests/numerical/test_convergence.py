@@ -8,7 +8,6 @@ an M3 stub (no ODE solve in M1).
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
 from fwmav_sim.analysis.averaging import wingbeat_mean
@@ -101,6 +100,36 @@ def test_blade_element_refinement():
     assert e_mid < e_coarse and e_fine < e_mid
 
 
-@pytest.mark.skip(reason="stub — implemented in M3 (no ODE solve in M1)")
 def test_solver_tolerance_sensitivity():
-    raise NotImplementedError
+    """Free-body hover at rtol 1e-6 / 1e-9 / 1e-12: the terminal state metric
+    must converge as the tolerance tightens (M3 numerical inventory)."""
+    from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
+    from fwmav_sim.core.transforms import quat_from_euler
+    from fwmav_sim.environment.spec import environment_from_spec
+    from fwmav_sim.experiment.config import load_experiment, load_vehicle
+    from fwmav_sim.simulation.free_body import AbdomenControl, FreeBodyPlant
+    from fwmav_sim.simulation.integrator import pack_state
+    from fwmav_sim.simulation.runner import run_free_body
+    from fwmav_sim.vehicle.schema import SolverSpec
+
+    exp = load_experiment("experiments/m3_free_body_hover.yaml")
+    vehicle = load_vehicle("reference_vehicles/bio_abdomen_fwmav.yaml")
+    env = environment_from_spec(exp.environment)
+    model = QuasiSteadyBladeElement(vehicle.aero)
+    plant = FreeBodyPlant(vehicle, exp.kinematics, env, model,
+                          control=AbdomenControl(mode="locked"))
+    y0 = np.concatenate([pack_state([0, 0, 0], quat_from_euler(0, 0, 0), [0, 0],
+                                    [0, 0, 0], [0, 0, 0], [0, 0])])
+
+    def metric(rtol):
+        spec = SolverSpec(integrator="DOP853", rtol=rtol, atol=rtol * 1e-3,
+                          steps_per_wingbeat=200, max_time=0.05)
+        ts, status, _ = run_free_body(plant, spec, y0)
+        assert status == "OK"
+        return np.concatenate([ts["p"][-1], ts["omega_B"][-1]])
+
+    ref = metric(1e-12)
+    e_coarse = np.linalg.norm(metric(1e-6) - ref) / np.linalg.norm(ref)
+    e_fine = np.linalg.norm(metric(1e-9) - ref) / np.linalg.norm(ref)
+    assert e_fine < e_coarse
+    assert e_fine < 1e-3

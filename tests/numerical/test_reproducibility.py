@@ -7,7 +7,6 @@ lands with the experiment record in M3.
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
 from fwmav_sim.environment import still_air
@@ -72,6 +71,24 @@ def test_repeat_run_determinism():
         assert np.array_equal(a[name], b[name]), name
 
 
-@pytest.mark.skip(reason="stub — implemented in M3 (experiment record rerun)")
-def test_save_reload_rerun_reproduces():
-    raise NotImplementedError
+def test_save_reload_rerun_reproduces(tmp_path):
+    """fwmav-sim rerun <record>: outputs bit-identical (fixed deterministic
+    pipeline; documented rule — the same holds for adaptive DOP853 here
+    because tolerances and inputs are identical)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    env_out = tmp_path / "out"
+    exp = Path("experiments/m2_foil_rl_sandbox.yaml").resolve()
+    r1 = subprocess.run(
+        [sys.executable, "-m", "fwmav_sim.cli", "run", str(exp), "--out", str(env_out)],
+        capture_output=True, text=True)
+    assert r1.returncode == 0, r1.stderr[-2000:]
+    record1 = Path(r1.stdout.strip().split("run record: ")[-1])
+
+    r2 = subprocess.run(
+        [sys.executable, "-m", "fwmav_sim.cli", "rerun", str(record1), "--out", str(env_out)],
+        capture_output=True, text=True)
+    assert r2.returncode == 0, r2.stdout + r2.stderr[-2000:]
+    assert "bit-identical" in r2.stdout

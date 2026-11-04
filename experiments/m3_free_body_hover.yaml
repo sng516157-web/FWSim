@@ -1,0 +1,34 @@
+# M3 free-body hover: 6-DoF thorax + locked abdomen + coupled quasi-steady aero.
+# Placeholder kinematics (estimated) — NOT trim-tuned; the vehicle drifts
+# honestly if lift != weight.
+name: m3_free_body_hover
+kind: free_body
+vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
+
+kinematics:
+  flap_amplitude: {value: 1.0472, unit: rad, provenance: {source: estimated, uncertainty_or_range: "60 deg placeholder"}}
+  flap_frequency: {value: 15.0, unit: Hz, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  pitch_amplitude: {value: 0.7854, unit: rad, provenance: {source: estimated, uncertainty_or_range: "45 deg placeholder"}}
+  pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg: theta_w in phase with stroke velocity"}}
+  pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "horizontal stroke plane placeholder"}}
+
+environment:
+  air_density: {value: 1.225, unit: kg/m^3, provenance: {source: literature, reference: "ISA sea level"}}
+  kinematic_viscosity: {value: 1.460e-5, unit: m^2/s, provenance: {source: literature, reference: "ISA sea level"}}
+  wind: {value: [0.0, 0.0, 0.0], unit: m/s, provenance: {source: estimated, uncertainty_or_range: "still air"}}
+
+abdomen:
+  mode: locked
+
+initial_state_free:
+  position: [0.0, 0.0, 0.0]
+  euler: [0.0, 0.0, 0.0]
+  joint_angles: [0.0, 0.0]
+
+solver:
+  integrator: DOP853
+  rtol: 1.0e-9
+  atol: 1.0e-12
+  steps_per_wingbeat: 200
+  max_time: 0.2   # 3 wingbeats

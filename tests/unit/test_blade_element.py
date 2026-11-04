@@ -143,6 +143,42 @@ def test_equal_area_discretization_equal_areas():
     np.testing.assert_allclose(areas, areas[0], rtol=1e-10)
 
 
+def test_free_body_element_state_matches_fixed_body_at_rest():
+    """M3 Task 4: with the body at rest, the moving-body element state must
+    equal the fixed-body result exactly; with uniform body velocity, element
+    velocity gains exactly v_B, and wind matching v_B recovers the same AoA."""
+    from fwmav_sim.kinematics.blade_element import element_state_free_body
+
+    wing = _wing()
+    kin = PrescribedWingKinematics(
+        flap_amplitude=_param(1.0, "rad"), flap_frequency=_param(10.0, "Hz"),
+        pitch_amplitude=_param(0.4, "rad"), pitch_phase=_param(np.pi, "rad"),
+        pitch_offset=_param(0.0, "rad"), stroke_plane_angle=_param(0.15, "rad"),
+    )
+    el = discretize(wing, 4)[1]
+    for t in (0.0, 0.013, 0.037):
+        fixed = element_state(wing, el, kin, t, nu=_NU)
+        free = element_state_free_body(wing, el, kin, t, nu=_NU,
+                                       R_wb=np.eye(3), p_B_W=np.zeros(3),
+                                       omega_W=np.zeros(3), v_B_W=np.zeros(3))
+        np.testing.assert_allclose(free.r_W, fixed.r_W, atol=1e-15)
+        np.testing.assert_allclose(free.v_W, fixed.v_W, atol=1e-15)
+        np.testing.assert_allclose(free.a_W, fixed.a_W, atol=1e-12)
+        assert free.alpha == fixed.alpha
+        # uniform body translation adds to the element velocity
+        v_body = np.array([0.3, 0.1, -0.2])
+        moved = element_state_free_body(wing, el, kin, t, nu=_NU,
+                                        R_wb=np.eye(3), p_B_W=np.zeros(3),
+                                        omega_W=np.zeros(3), v_B_W=v_body)
+        np.testing.assert_allclose(moved.v_W, fixed.v_W + v_body, atol=1e-15)
+        # wind matching the body velocity recovers the fixed-body AoA
+        comp = element_state_free_body(wing, el, kin, t, nu=_NU,
+                                       R_wb=np.eye(3), p_B_W=np.zeros(3),
+                                       omega_W=np.zeros(3), v_B_W=v_body,
+                                       v_air_W=v_body)
+        assert abs(comp.alpha - fixed.alpha) < 1e-15
+
+
 def test_mirrored_wings_mirrored_states():
     """frames.md §4: left element position/velocity/acceleration mirror the
     right under S = diag(1,-1,1); alpha is identical (physical-normal rule)."""

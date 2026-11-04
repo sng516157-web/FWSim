@@ -198,6 +198,6 @@ def test_forward_dynamics_rnea_consistency():
         ])
         u = rng.normal(size=8) * 0.3
         tau = rng.normal(size=8) * 1e-4
-        qdd = model.forward_dynamics(q, u, tau)
+        qdd, _ = model.forward_dynamics(q, u, tau)
         back = model.rnea(q, u, qdd)
         np.testing.assert_allclose(back, tau, rtol=1e-8, atol=1e-14)

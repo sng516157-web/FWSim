@@ -1,0 +1,321 @@
+# X-wing reference vehicle DRAFT (DR-004): four wings, fore/aft pairs.
+# Simplifications: aft pair same orientation, anti-phase stroke only;
+# clap-and-fling excluded (A-002). All values source: estimated.
+name: xwing_draft
+data_status: pending_original_parameters
+bodies:
+- name: thorax
+  mass:
+    value: 0.011
+    unit: kg
+    provenance:
+      source: estimated
+      uncertainty_or_range: placeholder pending paper parameter table
+  com_offset:
+    value:
+    - 0.0
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: "thorax reference point = B origin (reduced_model_spec.md\
+        \ \xA72)"
+  inertia:
+    value:
+    - - 2.0e-06
+      - 0.0
+      - 0.0
+    - - 0.0
+      - 2.0e-06
+      - 0.0
+    - - 0.0
+      - 0.0
+      - 2.0e-06
+    unit: kg m^2
+    provenance:
+      source: estimated
+      uncertainty_or_range: placeholder pending paper parameter table
+- name: abdomen_roll_carrier
+  mass:
+    value: 0.0
+    unit: kg
+    provenance:
+      source: estimated
+      uncertainty_or_range: massless frame carrier for the serial pitch->roll chain
+        (M3)
+  com_offset:
+    value:
+    - 0.0
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: carrier frame at the joint location
+  inertia:
+    value:
+    - - 0.0
+      - 0.0
+      - 0.0
+    - - 0.0
+      - 0.0
+      - 0.0
+    - - 0.0
+      - 0.0
+      - 0.0
+    unit: kg m^2
+    provenance:
+      source: estimated
+      uncertainty_or_range: massless
+  massless: true
+- name: abdomen
+  mass:
+    value: 0.004
+    unit: kg
+    provenance:
+      source: estimated
+      uncertainty_or_range: electronics concentrated in abdomen (paper concept); value
+        pending
+  com_offset:
+    value:
+    - -0.015
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: 15 mm behind the joint, in the abdomen frame; pending
+  inertia:
+    value:
+    - - 5.0e-07
+      - 0.0
+      - 0.0
+    - - 0.0
+      - 5.0e-07
+      - 0.0
+    - - 0.0
+      - 0.0
+      - 5.0e-07
+    unit: kg m^2
+    provenance:
+      source: estimated
+      uncertainty_or_range: placeholder pending paper parameter table
+joints:
+- name: abdomen_pitch
+  type: revolute
+  parent_body: thorax
+  child_body: abdomen_roll_carrier
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  location:
+    value:
+    - -0.015
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: joint 15 mm behind thorax reference point; pending
+  limits:
+  - -0.785398
+  - 0.785398
+  damping:
+    value: 1.0e-06
+    unit: N m s / rad
+    provenance:
+      source: estimated
+      uncertainty_or_range: placeholder
+- name: abdomen_roll
+  type: revolute
+  parent_body: abdomen_roll_carrier
+  child_body: abdomen
+  axis:
+  - 1.0
+  - 0.0
+  - 0.0
+  location:
+    value:
+    - 0.0
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: roll joint coincident with pitch joint
+  limits:
+  - -0.785398
+  - 0.785398
+  damping:
+    value: 1.0e-06
+    unit: N m s / rad
+    provenance:
+      source: estimated
+      uncertainty_or_range: placeholder
+wings:
+- name: wing_fore_right
+  side: right
+  span:
+    value: 0.1
+    unit: m
+    provenance: &id001
+      source: estimated
+      uncertainty_or_range: X-wing draft placeholder; pending CAD/paper data
+  root_chord:
+    value: 0.03
+    unit: m
+    provenance: *id001
+  tip_chord:
+    value: 0.015
+    unit: m
+    provenance: *id001
+  planform: trapezoidal
+  hinge_location:
+    value:
+    - 0.01
+    - 0.005
+    - 0.0
+    unit: m
+    provenance: *id001
+  pitch_axis_fraction:
+    value: 0.0
+    unit: '1'
+    provenance: *id001
+- name: wing_fore_left
+  side: left
+  span:
+    value: 0.1
+    unit: m
+    provenance: *id001
+  root_chord:
+    value: 0.03
+    unit: m
+    provenance: *id001
+  tip_chord:
+    value: 0.015
+    unit: m
+    provenance: *id001
+  planform: trapezoidal
+  hinge_location:
+    value:
+    - 0.01
+    - -0.005
+    - 0.0
+    unit: m
+    provenance: *id001
+  pitch_axis_fraction:
+    value: 0.0
+    unit: '1'
+    provenance: *id001
+- name: wing_aft_right
+  side: right
+  span:
+    value: 0.1
+    unit: m
+    provenance: *id001
+  root_chord:
+    value: 0.03
+    unit: m
+    provenance: *id001
+  tip_chord:
+    value: 0.015
+    unit: m
+    provenance: *id001
+  planform: trapezoidal
+  hinge_location:
+    value:
+    - -0.01
+    - 0.005
+    - 0.0
+    unit: m
+    provenance: *id001
+  pitch_axis_fraction:
+    value: 0.0
+    unit: '1'
+    provenance: *id001
+- name: wing_aft_left
+  side: left
+  span:
+    value: 0.1
+    unit: m
+    provenance: *id001
+  root_chord:
+    value: 0.03
+    unit: m
+    provenance: *id001
+  tip_chord:
+    value: 0.015
+    unit: m
+    provenance: *id001
+  planform: trapezoidal
+  hinge_location:
+    value:
+    - -0.01
+    - -0.005
+    - 0.0
+    unit: m
+    provenance: *id001
+  pitch_axis_fraction:
+    value: 0.0
+    unit: '1'
+    provenance: *id001
+blade_elements:
+  n_elements: 16
+  discretization: equal_span
+aero:
+  name: quasi_steady_blade_element
+  coefficients:
+    cl_0:
+      value: 0.225
+      unit: '1'
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+        valid_regime: Robofly, Re ~ O(100); unverified for this vehicle
+    cl_slope:
+      value: 1.58
+      unit: '1'
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+        valid_regime: Robofly, Re ~ O(100); unverified for this vehicle
+    cl_freq:
+      value: 2.13
+      unit: '1'
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+    cl_phase_deg:
+      value: 7.2
+      unit: deg
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+    cd_0:
+      value: 1.92
+      unit: '1'
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+        valid_regime: Robofly, Re ~ O(100); unverified for this vehicle
+    cd_slope:
+      value: 1.55
+      unit: '1'
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+        valid_regime: Robofly, Re ~ O(100); unverified for this vehicle
+    cd_freq:
+      value: 2.04
+      unit: '1'
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954
+    cd_phase_deg:
+      value: 9.82
+      unit: deg
+      provenance:
+        source: literature
+        reference: Dickinson et al. 1999, Science 284:1954

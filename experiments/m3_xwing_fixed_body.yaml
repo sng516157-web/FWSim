@@ -1,0 +1,33 @@
+# X-wing fixed-body smoke run (DR-004): four wings, fore/aft pairs anti-phase.
+# Kinematics placeholder (estimated); clap-and-fling excluded (A-002).
+name: m3_xwing_fixed_body
+kind: fixed_body
+vehicle: ../reference_vehicles/xwing_draft.yaml
+
+kinematics:
+  wing_fore_right: &fore
+    flap_amplitude: {value: 0.9, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    flap_frequency: {value: 15.0, unit: Hz, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    pitch_amplitude: {value: 0.7, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg phasing"}}
+    pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    stroke_phase: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "fore pair reference phase"}}
+  wing_fore_left: *fore
+  wing_aft_right: &aft
+    flap_amplitude: {value: 0.9, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    flap_frequency: {value: 15.0, unit: Hz, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    pitch_amplitude: {value: 0.7, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg phasing"}}
+    pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+    stroke_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "aft pair anti-phase (pi)"}}
+  wing_aft_left: *aft
+
+environment:
+  air_density: {value: 1.225, unit: kg/m^3, provenance: {source: literature, reference: "ISA sea level"}}
+  kinematic_viscosity: {value: 1.460e-5, unit: m^2/s, provenance: {source: literature, reference: "ISA sea level"}}
+  wind: {value: [0.0, 0.0, 0.0], unit: m/s, provenance: {source: estimated, uncertainty_or_range: "still air"}}
+
+n_wingbeats: 3
+steps_per_wingbeat: 200

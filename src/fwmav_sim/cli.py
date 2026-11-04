@@ -34,6 +34,10 @@ def main() -> int:
     p_avg.add_argument("record_dir", type=Path)
     p_avg.add_argument("-o", "--out", type=Path, required=True)
 
+    p_rerun = sub.add_parser("rerun", help="reproduce a stored run record and diff outputs")
+    p_rerun.add_argument("record_dir", type=Path)
+    p_rerun.add_argument("--out", type=Path, default=Path("outputs"))
+
     p_view = sub.add_parser("view", help="live 3D MeshCat view of an experiment or run record")
     p_view.add_argument("source", type=Path, help="experiment YAML or run-record directory")
     p_view.add_argument("--speed", type=float, default=0.05,
@@ -72,6 +76,36 @@ def main() -> int:
         out = save_average_forces(args.record_dir, args.out)
         print(f"averaged forces: {out}")
         return 0
+
+    if args.command == "rerun":
+        import numpy as np
+
+        from fwmav_sim.simulation.run import run_experiment
+
+        config = Path(args.record_dir) / "config.yaml"
+        new_dir = run_experiment(config, args.out)
+        import fwmav_sim.experiment.record as rec
+
+        ts_old, _ = rec.load_record(args.record_dir)
+        ts_new, _ = rec.load_record(new_dir)
+        if ts_old.channel_names() != ts_new.channel_names():
+            print("rerun MISMATCH: channel sets differ")
+            return 1
+        max_diff = 0.0
+        bitexact = True
+        for name in ts_old.channel_names():
+            a, b = ts_old[name], ts_new[name]
+            if a.shape != b.shape:
+                print(f"rerun MISMATCH: {name} shape {a.shape} vs {b.shape}")
+                return 1
+            if not np.array_equal(a, b):
+                bitexact = False
+                max_diff = max(max_diff, float(np.abs(a - b).max()))
+        if bitexact:
+            print(f"rerun: bit-identical outputs ({new_dir})")
+        else:
+            print(f"rerun: max abs diff {max_diff:.3e} ({new_dir})")
+        return 0 if bitexact else 2
 
     if args.command == "view":
         from fwmav_sim.viz.meshcat_scene import replay_record, serve_live

@@ -76,9 +76,14 @@ def make_rhs(model, force_fn=None, gravity: bool = True):
         f_ext = None
         if force_fn is not None:
             tau, f_ext = force_fn(t, qm, u)
-        ud = model.forward_dynamics(qm, u, tau, f_ext=f_ext, gravity=gravity)
+        ud, _tau_full = model.forward_dynamics(qm, u, tau, f_ext=f_ext, gravity=gravity)
         vd_W = R_wb @ (ud[3:6] + np.cross(w_B, v_B))
-        return np.concatenate([v_W, quat_rate(quat, w_B), qd_j, vd_W, ud[:3], ud[6:]])
+        out = np.concatenate([v_W, quat_rate(quat, w_B), qd_j, vd_W, ud[:3], ud[6:]])
+        if not np.all(np.isfinite(out)):
+            # fail fast: a NaN derivative would otherwise spin the adaptive
+            # stepper's rejection loop (brief §10 M3: stop visibly)
+            raise SolverFailure("non-finite derivative", t, y)
+        return out
 
     return rhs
 
@@ -98,7 +103,15 @@ def integrate_stepped(
 
     Returns (t, Y) sampled at solver steps (or every sample_dt if given).
     """
-    solver = DOP853(rhs, 0.0, np.asarray(y0, float), t_end,
+    def checked_rhs(t, y):
+        out = rhs(t, y)
+        if not np.all(np.isfinite(out)):
+            # fail fast: a NaN derivative would otherwise spin the adaptive
+            # stepper's rejection loop (brief §10 M3: stop visibly)
+            raise SolverFailure("non-finite derivative", t, y)
+        return out
+
+    solver = DOP853(checked_rhs, 0.0, np.asarray(y0, float), t_end,
                     rtol=rtol, atol=atol, max_step=max_step)
     ts = [0.0]
     Ys = [np.asarray(y0, float).copy()]

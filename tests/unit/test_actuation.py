@@ -7,7 +7,6 @@ limiting and torque saturation recording (actuator stages 2-3).
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from fwmav_sim.actuation.prescribed_abdomen import AbdomenProfile, prescribed_alpha
 
@@ -34,11 +33,35 @@ def test_profile_derivatives_finite_difference():
             assert abs(add - dd_fd) < 1e-4 * (1 + abs(dd_fd)), (p.kind, t)
 
 
-@pytest.mark.skip(reason="stub — implemented in M3 (actuator stage 2)")
 def test_profile_rate_limit():
-    raise NotImplementedError
+    """Stage 2: a command faster than rate_max is tracked at the limit."""
+    import numpy as np
+
+    from fwmav_sim.actuation.prescribed_abdomen import AbdomenProfile
+    from fwmav_sim.actuation.profile_limited import ProfileLimiter
+
+    limiter = ProfileLimiter(rate_max=1.0, accel_max=50.0, kp=100.0, kd=30.0)
+    cmd = AbdomenProfile(kind="sinusoid", amplitude=0.5, frequency=10.0)  # way too fast
+    # integrate the limiter at fine dt
+    state = np.zeros(2)
+    dt = 1e-5
+    peak_rate = 0.0
+    for k in range(20000):
+        state = state + limiter.rhs(state, k * dt, cmd) * dt
+        peak_rate = max(peak_rate, abs(state[1]))
+    assert peak_rate <= 1.0 + 1e-6
+    # and it does track (nonzero response)
+    assert np.abs(state[0]) > 1e-3
 
 
-@pytest.mark.skip(reason="stub — implemented in M3 (actuator stage 3)")
 def test_torque_saturation_recorded():
-    raise NotImplementedError
+    """Stage 3: commands beyond tau_max saturate and set the flag."""
+    import numpy as np
+
+    from fwmav_sim.actuation.torque_driven import TorqueActuator
+
+    act = TorqueActuator(tau_max=1e-5, tau_cmd=lambda t: 1e-4 * np.sin(2 * np.pi * t))
+    tau, sat = act.applied_torque(0.25, 0.0, 0.0)  # peak of command
+    assert sat and abs(tau) == 1e-5
+    tau, sat = act.applied_torque(0.0, 0.0, 0.0)  # zero command
+    assert not sat and tau == 0.0

@@ -40,6 +40,14 @@ def skew(v: np.ndarray) -> np.ndarray:
     return np.array([[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]])
 
 
+def cross3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Fast cross product for (3,) arrays — np.cross has heavy axis-machinery
+    overhead that dominates the aero hot loop (M3 profiling)."""
+    return np.array([a[1] * b[2] - a[2] * b[1],
+                     a[2] * b[0] - a[0] * b[2],
+                     a[0] * b[1] - a[1] * b[0]])
+
+
 def dR_dt(R: np.ndarray, omega_child: np.ndarray) -> np.ndarray:
     """Time derivative of a DCM given the child's angular velocity in child coords."""
     return R @ skew(omega_child)

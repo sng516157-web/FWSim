@@ -18,20 +18,29 @@ import numpy as np
 from fwmav_sim.aero.interface import AerodynamicModel, Environment
 from fwmav_sim.core.timeseries import TimeSeries
 from fwmav_sim.kinematics.blade_element import discretize, element_state
-from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics
 from fwmav_sim.vehicle.schema import VehicleDefinition
 
 
 def run_fixed_body(
     vehicle: VehicleDefinition,
-    kinematics: PrescribedWingKinematics,
+    kinematics,
     env: Environment,
     model: AerodynamicModel,
     n_wingbeats: int,
     steps_per_wingbeat: int,
 ) -> TimeSeries:
-    """Time-stepped fixed-body force simulation over n wingbeats."""
-    f = kinematics.flap_frequency.value
+    """Time-stepped fixed-body force simulation over n wingbeats.
+
+    kinematics: one PrescribedWingKinematics (broadcast) or a per-wing dict
+    (all wings must share the flapping frequency; phases may differ)."""
+    if isinstance(kinematics, dict):
+        freqs = {round(k.flap_frequency.value, 12) for k in kinematics.values()}
+        if len(freqs) != 1:
+            raise ValueError("all wings must share the flapping frequency")
+        f = next(iter(kinematics.values())).flap_frequency.value
+    else:
+        kinematics = {w.name: kinematics for w in vehicle.wings}
+        f = kinematics and next(iter(kinematics.values())).flap_frequency.value
     period = 1.0 / f
     t = np.arange(n_wingbeats * steps_per_wingbeat) * (period / steps_per_wingbeat)
     n = len(t)
@@ -61,7 +70,7 @@ def run_fixed_body(
             alphas = np.zeros(len(elements[name]))
             res = np.zeros(len(elements[name]))
             for j, el in enumerate(elements[name]):
-                st = element_state(w, el, kinematics, ti, nu=env.nu, v_air_W=env.v_air_W)
+                st = element_state(w, el, kinematics[w.name], ti, nu=env.nu, v_air_W=env.v_air_W)
                 ef = model.element_forces(st, env)
                 F_sum += ef.resultant
                 M_sum += np.cross(st.r_W, ef.resultant)

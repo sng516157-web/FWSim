@@ -55,9 +55,13 @@ names the milestone.
 | *(M2)* pendulum energy drift | `test_frictionless_pendulum_energy_drift` (real) | `tests/numerical/test_pendulum_energy.py` | M2 ✔ |
 | *(M2)* actuated-case timestep refinement | `test_actuated_pendulum_timestep_refinement` (real) | `tests/numerical/test_pendulum_energy.py` | M2 ✔ |
 | *(M2 §2.4a)* RL-sandbox foil | `test_foil_rhs_equivalence`, `test_foil_hover_equilibrium`, `test_foil_pitch_response` (real) | `tests/analytical/test_foil_rl_sandbox.py` | M2 ✔ |
-| Solver tolerance sensitivity | `test_solver_tolerance_sensitivity` | `tests/numerical/test_convergence.py` | M3 |
-| Quaternion/attitude normalization | `test_quaternion_norm_post_step` | `tests/numerical/test_attitude.py` | M3 |
-| Save/reload reproducibility | `test_save_reload_rerun_reproduces` | `tests/numerical/test_reproducibility.py` | M3 |
+| Solver tolerance sensitivity | `test_solver_tolerance_sensitivity` (real) | `tests/numerical/test_convergence.py` | M3 ✔ |
+| Quaternion/attitude normalization | `test_quaternion_norm_post_step` (real) + `test_quat_guard_triggers` (real) | `tests/numerical/test_attitude.py` | M3 ✔ |
+| Save/reload reproducibility | `test_save_reload_rerun_reproduces` (real, CLI rerun bit-identical) | `tests/numerical/test_reproducibility.py` | M3 ✔ |
+| Solver failure behaviour | `test_nan_forces_fail_visibly` (real) | `tests/numerical/test_failure_behaviour.py` | M3 ✔ |
+| *(M3)* planar-limit regression | `test_planar_limit_recovers_reduced_model` (real) | `tests/analytical/test_articulated_dynamics.py` | M3 ✔ |
+| *(M3)* conservation laws | `test_gravity_free_momentum_and_energy_conservation`, `test_gravity_linear_momentum_follows_free_fall` (real) | `tests/analytical/test_articulated_dynamics.py` | M3 ✔ |
+| *(M3)* composite equivalence | `test_clamped_chain_equals_composite_single_body` (real) | `tests/analytical/test_articulated_dynamics.py` | M3 ✔ |
 | Repeat-run determinism (M1 stage §1.4) | `test_repeat_run_determinism` (real) | `tests/numerical/test_reproducibility.py` | M1 ✔ |
 | Headless/UI equivalence | `test_headless_ui_equivalence` | `tests/numerical/test_ui_equivalence.py` | M5 |
 | *(M3) solver-failure behaviour* | `test_nan_forces_fail_visibly` | `tests/numerical/test_failure.py` | M3 |
@@ -69,7 +73,7 @@ names the milestone.
 | Published analytical/numerical comparison | `test_leng2024_suspended_comparison` (skip: awaiting original data, brief §12) | `tests/validation/test_leng2024.py` | M4 (PENDING data) |
 | Suspended-abdomen experiment comparison | `test_suspended_abdomen_comparison` (same dataset dependency) | `tests/validation/test_leng2024.py` | M4 (PENDING data) |
 | Free-flight validation when data become available | `test_free_flight_comparison` (skip: no data) | `tests/validation/test_free_flight.py` | M4+ (PENDING data) |
-| Mechanism-ablation comparisons | `test_mechanism_isolation_cases` | `tests/validation/test_mechanism_isolation.py` | M3 |
+| Mechanism-ablation comparisons | `test_mechanism_isolation_cases` (real) + `test_abdomen_aero_flag_raises` (real) | `tests/validation/test_mechanism_isolation.py` | M3 ✔ |
 | *(pipeline proof without validation claim)* | `test_synthetic_dataset_roundtrip` | `tests/validation/test_synthetic_pipeline.py` | M4 |
 
 ## Rules

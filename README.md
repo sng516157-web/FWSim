@@ -42,6 +42,6 @@ pytest --collect-only -q
 | M0 | Modelling specification and test plan | accepted (report: `docs/milestone_reports/M0.md`) |
 | M1 | Fixed-body aerodynamic vertical slice | accepted (report: `docs/milestone_reports/M1.md`) |
 | M2 | Two-wing vehicle + analytical abdomen model | accepted (report: `docs/milestone_reports/M2.md`) |
-| M3 | Nonlinear articulated free-body simulation | not started |
+| M3 | Nonlinear articulated free-body simulation | accepted (report: `docs/milestone_reports/M3.md`) |
 | M4 | Validation and experiment comparison | not started |
 | M5 | Integrated workbench | not started |

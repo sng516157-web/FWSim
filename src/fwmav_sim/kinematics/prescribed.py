@@ -36,7 +36,12 @@ class FourierTerm(BaseModel):
 
 
 class PrescribedWingKinematics(BaseModel):
-    """Prescribed sinusoidal (+ optional Fourier) wing kinematics."""
+    """Prescribed sinusoidal (+ optional Fourier) wing kinematics.
+
+    ``stroke_phase`` (default 0) shifts the wing's beat relative to the
+    experiment clock — used e.g. for the anti-phase aft pair of an X-wing.
+    With stroke_phase = 0 the frozen M0 definition holds exactly.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -49,6 +54,7 @@ class PrescribedWingKinematics(BaseModel):
     deviation_phase: Parameter | None = None  # delta_psi [rad]
     stroke_plane_angle: Parameter  # beta [rad]
     pitch_fourier: list[FourierTerm] = Field(default_factory=list)
+    stroke_phase: Parameter | None = None  # delta_stroke [rad], default 0
 
 
 @dataclass(frozen=True)
@@ -71,17 +77,18 @@ def wing_state(kin: PrescribedWingKinematics, t: float) -> WingKinematicState:
     """Analytic wing kinematic state at time t (frames.md §3)."""
     phi_amp = kin.flap_amplitude.value
     w = 2.0 * np.pi * kin.flap_frequency.value
+    delta_s = kin.stroke_phase.value if kin.stroke_phase is not None else 0.0
     theta_amp = kin.pitch_amplitude.value
     delta_theta = kin.pitch_phase.value
     theta_off = kin.pitch_offset.value
 
-    phi = phi_amp * np.cos(w * t)
-    phi_dot = -phi_amp * w * np.sin(w * t)
-    phi_ddot = -phi_amp * w * w * np.cos(w * t)
+    phi = phi_amp * np.cos(w * t + delta_s)
+    phi_dot = -phi_amp * w * np.sin(w * t + delta_s)
+    phi_ddot = -phi_amp * w * w * np.cos(w * t + delta_s)
 
-    theta_w = theta_off + theta_amp * np.sin(w * t + delta_theta)
-    theta_w_dot = theta_amp * w * np.cos(w * t + delta_theta)
-    theta_w_ddot = -theta_amp * w * w * np.sin(w * t + delta_theta)
+    theta_w = theta_off + theta_amp * np.sin(w * t + delta_theta + delta_s)
+    theta_w_dot = theta_amp * w * np.cos(w * t + delta_theta + delta_s)
+    theta_w_ddot = -theta_amp * w * w * np.sin(w * t + delta_theta + delta_s)
     for term in kin.pitch_fourier:
         nw = term.harmonic * w
         theta_w += term.amplitude * np.sin(nw * t + term.phase)
@@ -91,9 +98,9 @@ def wing_state(kin: PrescribedWingKinematics, t: float) -> WingKinematicState:
     if kin.deviation_amplitude is not None:
         psi_amp = kin.deviation_amplitude.value
         delta_psi = kin.deviation_phase.value if kin.deviation_phase is not None else 0.0
-        psi_w = psi_amp * np.sin(w * t + delta_psi)
-        psi_w_dot = psi_amp * w * np.cos(w * t + delta_psi)
-        psi_w_ddot = -psi_amp * w * w * np.sin(w * t + delta_psi)
+        psi_w = psi_amp * np.sin(w * t + delta_psi + delta_s)
+        psi_w_dot = psi_amp * w * np.cos(w * t + delta_psi + delta_s)
+        psi_w_ddot = -psi_amp * w * w * np.sin(w * t + delta_psi + delta_s)
     else:
         psi_w = psi_w_dot = psi_w_ddot = 0.0
 
