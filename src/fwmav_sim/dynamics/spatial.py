@@ -64,12 +64,12 @@ def spatial_inertia(mass: float, com: np.ndarray, I_c: np.ndarray) -> np.ndarray
     """Spatial inertia about the frame origin; com = CoM offset in that frame,
     I_c = inertia about the CoM."""
     cx = skew(com)
-    I = np.zeros((6, 6))
-    I[:3, :3] = I_c + mass * cx.T @ cx
-    I[:3, 3:] = mass * cx
-    I[3:, :3] = mass * cx.T
-    I[3:, 3:] = mass * np.eye(3)
-    return I
+    I_sp = np.zeros((6, 6))
+    I_sp[:3, :3] = I_c + mass * cx.T @ cx
+    I_sp[:3, 3:] = mass * cx
+    I_sp[3:, :3] = mass * cx.T
+    I_sp[3:, 3:] = mass * np.eye(3)
+    return I_sp
 
 
 _AXIS_ROT = {"x": Rx, "y": Ry, "z": Rz}
