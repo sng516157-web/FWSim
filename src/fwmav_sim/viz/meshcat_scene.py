@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
-from fwmav_sim.core.transforms import R_B_SP, R_W_B
+from fwmav_sim.core.transforms import R_B_SP, R_W_B, quat_to_matrix
 from fwmav_sim.environment.spec import environment_from_spec
 from fwmav_sim.experiment.config import load_experiment, load_vehicle
 from fwmav_sim.kinematics.blade_element import (
@@ -214,9 +214,149 @@ def serve_live(
 
 
 def replay_record(record_dir: Path, playback_speed: float = 0.05, force_scale: float = 5.0) -> str:
-    """Replay a stored run record live (forces from the record's config)."""
+    """Replay a stored run record live. Dispatches on record kind: fixed-body
+    records replay the kinematics; free_body records replay the actual
+    recorded trajectory (body translates/rotates under the flapping wings)."""
     record_dir = Path(record_dir)
+    import json
+
+    meta = json.loads(record_dir.joinpath("metadata.json").read_text(encoding="utf-8"))
+    kind = meta.get("time_series_meta", {}).get("kind")
+    if kind == "free_body":
+        return serve_free_body_record(record_dir, playback_speed, force_scale)
     return serve_live(record_dir / "config.yaml", playback_speed, force_scale)
+
+
+def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,
+                           force_scale: float = 5.0) -> str:
+    """Live replay of a free_body run record: the recorded 6-DoF trajectory
+    drives the body pose; wings follow the prescribed kinematics relative to
+    the moving body; force arrows recomputed per element from the recorded
+    state (position, velocity, attitude) at each frame."""
+    import meshcat
+    import meshcat.geometry as g
+
+    from fwmav_sim.experiment.record import load_record
+    from fwmav_sim.kinematics.blade_element import WingFrameContext, element_state_ctx
+
+    record_dir = Path(record_dir)
+    ts, meta = load_record(record_dir)
+    vehicle = load_vehicle(record_dir / "vehicle.yaml")
+    from fwmav_sim.experiment.config import load_experiment
+
+    exp = load_experiment(record_dir / "config.yaml")
+    env = environment_from_spec(exp.environment)
+    model = QuasiSteadyBladeElement(vehicle.aero)
+    from fwmav_sim.experiment.config import kinematics_map
+
+    kin_map = kinematics_map(exp, vehicle)
+
+    vis = meshcat.Visualizer()
+    state = build_scene(vis, vehicle.wings, next(iter(kin_map.values())),
+                        n_elements=vehicle.blade_elements.n_elements,
+                        force_scale=force_scale)
+    # body proxy: thorax box + abdomen rod (display only; geometry from the
+    # vehicle definition where available)
+    vis["body/thorax"].set_object(g.Box([0.04, 0.03, 0.02]),
+                                  g.MeshLambertMaterial(color=0x888899))
+    vis["body/abdomen"].set_object(g.Cylinder(0.03, 0.004),
+                                   g.MeshLambertMaterial(color=0xBB7733))
+    vis["body/com"].set_object(g.Sphere(0.004), g.MeshLambertMaterial(color=0x22FF66))
+
+    from fwmav_sim.dynamics.spatial import ArticulatedModel
+    art = ArticulatedModel(vehicle)
+
+    url = vis.url()
+    print(f"MeshCat free-body replay: {url}   (Ctrl-C to stop)")
+
+    t_rec = ts.t
+    P = ts["p"]
+    Q = ts["quat"]
+    QJ = ts["q_joints"]
+    VW = ts["v_W"]
+    OB = ts["omega_B"]
+    n = len(t_rec)
+    period_total = t_rec[-1] - t_rec[0]
+
+    try:
+        while True:
+            for i in range(n):
+                # body pose in viewer coords
+                R_wb = quat_to_matrix(Q[i])
+                p_W = P[i]
+                R_v = NED_TO_VIEW @ R_wb
+                p_v = NED_TO_VIEW @ p_W
+                tf_body = np.eye(4)
+                tf_body[:3, :3] = R_v
+                tf_body[:3, 3] = p_v
+                vis["body/thorax"].set_transform(tf_body)
+
+                # abdomen rod: from the pitch joint backward along the abdomen
+                # axis (display): roll/pitch from the recorded joint angles
+                qm = np.concatenate([p_W, Q[i], QJ[i]])
+                tf_abd = art.forward_kinematics(qm)["abdomen"]
+                joint = vehicle.joints[0]
+                r_J_W = p_W + R_wb @ np.asarray(joint.location.value)
+                tf_a = np.eye(4)
+                tf_a[:3, :3] = NED_TO_VIEW @ tf_abd[0] @ np.array(
+                    [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])  # rod z->x align
+                tf_a[:3, 3] = NED_TO_VIEW @ (r_J_W + tf_abd[0] @ np.array([-0.015, 0.0, 0.0]))
+                vis["body/abdomen"].set_transform(tf_a)
+
+                r_com = art.com(qm)
+                tf_c = np.eye(4)
+                tf_c[:3, 3] = NED_TO_VIEW @ r_com
+                vis["body/com"].set_transform(tf_c)
+
+                # wings + per-element force arrows under the recorded motion
+                for entry in state["wings"]:
+                    wing = entry["spec"]
+                    kin = kin_map[wing.name]
+                    ks = wing_state(kin, t_rec[i])
+                    R_WR, _, _, _ = wing_chain(ks, wing.side)
+                    R_world_WR = R_wb @ R_B_SP(kin.stroke_plane_angle.value) @ R_WR
+                    origin_W = p_W + R_wb @ np.asarray(wing.hinge_location.value, float)
+                    tf_w = np.eye(4)
+                    tf_w[:3, :3] = NED_TO_VIEW @ R_world_WR
+                    tf_w[:3, 3] = NED_TO_VIEW @ origin_W
+                    vis[f"wing/{wing.name}"].set_transform(tf_w)
+                    vis[f"frames/{wing.name}_root"].set_transform(tf_w)
+                    tip = np.array([entry["elements"][-1].x_c, entry["elements"][-1].s, 0.0])
+                    tf_tip = tf_w.copy()
+                    tf_tip[:3, 3] = NED_TO_VIEW @ (origin_W + R_world_WR @ tip)
+                    vis[f"frames/{wing.name}_tip"].set_transform(tf_tip)
+
+                    ctx = WingFrameContext(wing, kin, t_rec[i], R_wb, p_W,
+                                           R_wb @ OB[i], VW[i], env.v_air_W)
+                    for j, el in enumerate(entry["elements"]):
+                        st = element_state_ctx(wing, el, ctx, nu=env.nu)
+                        f = model.element_forces(st, env).resultant
+                        L = float(np.linalg.norm(f)) * force_scale
+                        shaft = vis[f"forces/{wing.name}/{j}/shaft"]
+                        head = vis[f"forces/{wing.name}/{j}/head"]
+                        if L < 1e-4:
+                            shaft.set_transform(np.zeros((4, 4)))
+                            head.set_transform(np.zeros((4, 4)))
+                            continue
+                        r_view = NED_TO_VIEW @ st.r_W
+                        d = NED_TO_VIEW @ (f / np.linalg.norm(f))
+                        R_al = _align_axis_to(d, _Y)
+                        L_shaft, L_head = 0.8 * L, 0.2 * L
+                        tf_s = np.eye(4)
+                        tf_s[:3, :3] = R_al @ np.diag([1.0, L_shaft, 1.0])
+                        tf_s[:3, 3] = r_view + d * (L_shaft / 2)
+                        shaft.set_transform(tf_s)
+                        tf_h = np.eye(4)
+                        tf_h[:3, :3] = R_al @ np.diag([1.0, L_head, 1.0])
+                        tf_h[:3, 3] = r_view + d * (L_shaft + L_head / 2)
+                        head.set_transform(tf_h)
+
+                # pacing
+                dt_wall = period_total / n / max(playback_speed, 1e-3)
+                time.sleep(max(dt_wall, 0.005))
+    except KeyboardInterrupt:
+        pass
+    return url
 
 
 def spike_check() -> bool:
