@@ -39,6 +39,12 @@ from fwmav_sim.kinematics.blade_element import (
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics, wing_state
 from fwmav_sim.vehicle.schema import WingSpec
 
+#: Display-only rotation from our physics world (NED, z down, frames.md §1.1)
+#: to the meshcat/three.js viewer convention (Y up). Physical up (-z) renders
+#: as viewer +y; physical forward (+x) stays +x. det = +1 (proper rotation).
+#: Physics is never affected — this mapping is applied only at the view layer.
+NED_TO_VIEW = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
+
 
 def _wing_mesh_vertices(wing: WingSpec, edges: np.ndarray) -> np.ndarray:
     """Wing surface quad-strip vertices in WR coords (pitch axis honoured).
@@ -133,17 +139,17 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
         ks = wing_state(kin, t)
         R_WR, _, _, _ = wing_chain(ks, wing.side)
         R_world_WR = R_W_B(0.0, 0.0, 0.0) @ R_B_SP(beta) @ R_WR
-        origin = np.asarray(wing.hinge_location.value, dtype=float)
+        origin = NED_TO_VIEW @ np.asarray(wing.hinge_location.value, dtype=float)
 
         tf = np.eye(4)
-        tf[:3, :3] = R_world_WR
+        tf[:3, :3] = NED_TO_VIEW @ R_world_WR
         tf[:3, 3] = origin
         vis[f"wing/{wing.name}"].set_transform(tf)
         vis[f"frames/{wing.name}_root"].set_transform(tf)
 
         tf_tip = tf.copy()
         tip = np.array([elements[-1].x_c, elements[-1].s, 0.0])
-        tf_tip[:3, 3] = origin + R_world_WR @ tip
+        tf_tip[:3, 3] = origin + NED_TO_VIEW @ R_world_WR @ tip
         vis[f"frames/{wing.name}_tip"].set_transform(tf_tip)
 
         if model is not None and env is not None:
@@ -157,16 +163,17 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
                     shaft.set_transform(np.zeros((4, 4)))
                     head.set_transform(np.zeros((4, 4)))
                     continue
-                d = f / np.linalg.norm(f)
+                r_view = NED_TO_VIEW @ st.r_W
+                d = NED_TO_VIEW @ (f / np.linalg.norm(f))
                 R_al = _align_axis_to(d, _Y)  # cylinder axis is +y (three.js convention)
                 L_shaft, L_head = 0.8 * L, 0.2 * L
                 tf_s = np.eye(4)
                 tf_s[:3, :3] = R_al @ np.diag([1.0, L_shaft, 1.0])
-                tf_s[:3, 3] = st.r_W + d * (L_shaft / 2)
+                tf_s[:3, 3] = r_view + d * (L_shaft / 2)
                 shaft.set_transform(tf_s)
                 tf_h = np.eye(4)
                 tf_h[:3, :3] = R_al @ np.diag([1.0, L_head, 1.0])
-                tf_h[:3, 3] = st.r_W + d * (L_shaft + L_head / 2)
+                tf_h[:3, 3] = r_view + d * (L_shaft + L_head / 2)
                 head.set_transform(tf_h)
 
 

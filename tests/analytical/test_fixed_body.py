@@ -64,6 +64,32 @@ def test_stationary_wing_zero_force():
                 np.testing.assert_allclose(term, np.zeros(3), atol=1e-15)
 
 
+def test_hover_kinematics_lift_up_both_half_strokes():
+    """Anti-regression for DR-003 (the α>90° fit-mapping bug): with hover-like
+    kinematics (stroke in phase with cos, pitch flipped in phase with stroke
+    velocity), both half-strokes must produce upward force (F_z < 0, z down),
+    and drag must tilt the force opposite to the stroke direction."""
+    model, wing = _model(), _wing()
+    kin = PrescribedWingKinematics(
+        flap_amplitude=_param(1.0, "rad"), flap_frequency=_param(10.0, "Hz"),
+        pitch_amplitude=_param(0.7, "rad"), pitch_phase=_param(np.pi, "rad"),
+        pitch_offset=_param(0.0, "rad"), stroke_plane_angle=_param(0.0, "rad"),
+    )
+    env = still_air()
+    T = 1.0 / kin.flap_frequency.value
+    F_tot = np.zeros(3)
+    for frac, v_sign in ((0.25, -1.0), (0.75, +1.0)):  # backstroke, forward stroke
+        F = np.zeros(3)
+        for el in discretize(wing, 16):
+            st = element_state(wing, el, kin, frac * T, nu=env.nu)
+            F += model.element_forces(st, env).resultant
+        assert F[2] < 0, f"phase {frac}: force must be UP (F_z < 0), got {F}"
+        assert np.sign(F[0]) == -v_sign, f"phase {frac}: drag must oppose stroke motion"
+        F_tot += F
+    # and the cycle mean must be a net upward force of sensible magnitude
+    assert F_tot[2] < 0
+
+
 def test_uniform_translation_steady_drag_sign():
     """Uniform flow from ahead (-x wind, wing at rest, alpha = 0):
     steady force = q (C_L(0) e_L - C_D(0) v_hat), drag pushing the wing -x."""

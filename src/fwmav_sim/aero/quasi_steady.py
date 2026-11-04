@@ -36,6 +36,10 @@ clap-and-fling, arbitrary separated flow, circulatory lag.
 Degenerate case: when v_rel is parallel to n_phys (|alpha| = 90 deg exactly),
 the lift direction is undefined; the lift and rotational directions are set to
 zero (C_L(90 deg) is small in the fit). Documented in the M1 report.
+
+Known issue fixed post-M1 (DR-003 / A-008): the fit is now evaluated on the
+flipped-wing-equivalent incidence in [0, 90 deg] — before this fix, the
+backstroke evaluated the fit at alpha = 135 deg and produced downforce.
 """
 
 from __future__ import annotations
@@ -65,12 +69,23 @@ class QuasiSteadyBladeElement(AerodynamicModel):
         self._c = {k: p.value for k, p in spec.coefficients.items()}
 
     def cl_cd(self, alpha_rad: float) -> tuple[float, float]:
-        """C_L (signed), C_D from the Dickinson 1999 fits; alpha folded to
-        [0, 180 deg] with the flat-plate sign symmetry documented above."""
+        """C_L (signed), C_D from the Dickinson 1999 fits.
+
+        Fit-domain convention (DR-003, assumption A-008): the published fits
+        cover alpha in [0, 180 deg], where alpha > 90 deg describes a
+        *non-flipped* trailing-edge-first plate. A flapping wing flips at
+        stroke reversal, presenting the same surface at the same incidence on
+        both half-strokes, so the fits are evaluated on the folded incidence
+        |alpha| in [0, 90 deg] with odd (C_L) / even (C_D) symmetry and the
+        sign of the flight-convention alpha. Hover regression tests pin that
+        both half-strokes then produce upward force.
+        """
         c = self._c
         a_deg = np.degrees((alpha_rad + np.pi) % (2 * np.pi) - np.pi)
         sign = 1.0 if a_deg >= 0 else -1.0
         a = abs(a_deg)
+        if a > 90.0:
+            a = 180.0 - a
         cl = c["cl_0"] + c["cl_slope"] * np.sin(np.radians(c["cl_freq"] * a - c["cl_phase_deg"]))
         cd = c["cd_0"] - c["cd_slope"] * np.cos(np.radians(c["cd_freq"] * a - c["cd_phase_deg"]))
         return sign * cl, cd
