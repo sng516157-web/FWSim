@@ -7,3 +7,5 @@ __pycache__/
 outputs/
 dist/
 build/
+derivations/_*.pdf
+derivations/_*.txt
