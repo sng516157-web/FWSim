@@ -26,9 +26,12 @@ def element_forces(...):
 
 ## Pending / explicitly not assumed
 
-- Abdomen aerodynamics (brief §6.5 Level 3) are **not** assumed negligible in
-  general; they are simply unmodelled until Level 3. Mechanism-isolation runs
-  (brief §6.6) must keep the `abdomen_aero_enabled` flag visible.
+- Abdomen aerodynamics (brief §6.5 Level 3) are **modelled** as of post-M5
+  item 4 (`aero/abdomen.py`: flat plate with own CoP and Dickinson-form fits,
+  applied at the abdomen body; `abdomen_aero` block in the vehicle YAML +
+  `abdomen_aero_enabled` isolation flag). Abdomen–wing wake interaction is
+  NOT modelled (A-002 extends to the abdomen); coefficients are placeholders
+  until experimentally identified (brief §6.5 Level 3 correction path).
 - Suspended-string experiments have pendulum dynamics and a physical pivot;
   they are **not** assumed equivalent to free flight (brief §6.3) — they get
   their own constraint model (M2) rather than an assumption entry.

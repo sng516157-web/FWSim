@@ -71,6 +71,13 @@ def main() -> int:
                         help="metric for the ranked table (default: kind-specific)")
     p_sens.add_argument("--out", type=Path, default=Path("outputs"))
 
+    p_urdf = sub.add_parser("import-urdf",
+                            help="import CAD-exported URDF mass properties into a "
+                                 "vehicle YAML skeleton (DR-004 spike; wings manual)")
+    p_urdf.add_argument("urdf", type=Path)
+    p_urdf.add_argument("-o", "--out", type=Path, required=True)
+    p_urdf.add_argument("--name", default=None)
+
     sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
 
     args = parser.parse_args()
@@ -177,13 +184,32 @@ def main() -> int:
             json.dumps({"experiment": str(args.experiment), "rel_step": args.rel,
                         "baseline": base,
                         "entries": [{"path": e.path, "base_value": e.base_value,
-                                     "step": e.step, "sensitivities": e.sensitivities,
+                                     "step": e.step, "derivatives": e.derivatives,
+                                     "sensitivities": e.sensitivities,
                                      "status": e.status} for e in entries]},
                        indent=2), encoding="utf-8")
         md = report_markdown(str(args.experiment), base, entries, metric)
         (out_dir / "report.md").write_text(md, encoding="utf-8")
         print(md)
         print(f"sensitivity record: {out_dir}")
+        return 0
+
+    if args.command == "import-urdf":
+        import yaml
+
+        from fwmav_sim.vehicle.urdf_import import import_urdf
+
+        vehicle = import_urdf(args.urdf, name=args.name)
+        header = (
+            f"# Vehicle skeleton imported from URDF (DR-004 spike): {args.urdf.name}\n"
+            "# Bodies/joints carry CAD mass properties (provenance: estimated).\n"
+            "# Frame convention: URDF frames must already match this project\n"
+            "# (+x forward, +z down body frame) — pre-rotate at CAD export if not.\n"
+            "# TODO: author wings/aero manually; joints are serial-chain only.\n")
+        args.out.write_text(
+            header + yaml.safe_dump(vehicle.model_dump(mode="json"), sort_keys=False),
+            encoding="utf-8")
+        print(f"vehicle skeleton: {args.out}")
         return 0
 
     return 1

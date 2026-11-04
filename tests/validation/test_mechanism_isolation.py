@@ -46,6 +46,33 @@ def test_mechanism_isolation_cases(tmp_path):
     assert np.abs(ts_geom["p"] - ts_full["p"]).max() > 1e-9
 
 
-def test_abdomen_aero_flag_raises():
-    with pytest.raises(NotImplementedError, match="Level-3"):
-        IsolationSpec(abdomen_aero_enabled=True)
+def test_abdomen_aero_flag_requires_vehicle_spec():
+    """Level 3 (post-M5 item 4): the flag needs an abdomen_aero block and an
+    articulated abdomen; without them the plant raises a clear error."""
+    from fwmav_sim.aero.interface import Environment
+    from fwmav_sim.simulation.free_body import FreeBodyPlant
+    from fwmav_sim.vehicle.schema import VehicleDefinition
+
+    prov = {"source": "estimated"}
+    vehicle = VehicleDefinition.model_validate({
+        "name": "no_abdomen_aero",
+        "bodies": [{"name": "body",
+                    "mass": {"value": 0.02, "unit": "kg", "provenance": prov},
+                    "com_offset": {"value": [0, 0, 0], "unit": "m", "provenance": prov},
+                    "inertia": {"value": (np.eye(3) * 5e-5).tolist(),
+                                "unit": "kg m^2", "provenance": prov}}],
+        "joints": [], "wings": [], "aero": {"name": "none", "coefficients": {}},
+    })
+    env = Environment(rho=1.225, nu=1.5e-5, v_air_W=np.zeros(3))
+    from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics
+    kin = PrescribedWingKinematics.model_validate({
+        "flap_amplitude": {"value": 0.5, "unit": "rad", "provenance": prov},
+        "flap_frequency": {"value": 10.0, "unit": "Hz", "provenance": prov},
+        "pitch_amplitude": {"value": 0.3, "unit": "rad", "provenance": prov},
+        "pitch_phase": {"value": 0.0, "unit": "rad", "provenance": prov},
+        "pitch_offset": {"value": 0.0, "unit": "rad", "provenance": prov},
+        "stroke_plane_angle": {"value": 0.0, "unit": "rad", "provenance": prov},
+    })
+    with pytest.raises(ValueError, match="abdomen_aero"):
+        FreeBodyPlant(vehicle, kin, env, None,
+                      isolation=IsolationSpec(abdomen_aero_enabled=True))

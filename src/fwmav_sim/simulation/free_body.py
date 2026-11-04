@@ -31,6 +31,7 @@ import numpy as np
 from fwmav_sim.actuation.prescribed_abdomen import AbdomenProfile, prescribed_alpha
 from fwmav_sim.actuation.profile_limited import ProfileLimiter
 from fwmav_sim.actuation.torque_driven import TorqueActuator
+from fwmav_sim.aero.abdomen import AbdomenPlateAero
 from fwmav_sim.aero.interface import AerodynamicModel, Environment
 from fwmav_sim.core.transforms import cross3, quat_normalize, quat_to_matrix
 from fwmav_sim.dynamics.spatial import ArticulatedModel
@@ -50,15 +51,13 @@ class IsolationSpec:
 
     mass_shift_enabled: bool = True
     inertial_coupling_enabled: bool = True
-    abdomen_aero_enabled: bool = False  # stub: raises until the Level-3 model exists
+    abdomen_aero_enabled: bool = False  # Level 3: requires vehicle.abdomen_aero
     wing_inertia_enabled: bool = True  # wing structural mass (DR-006); no-op if massless
 
     def __post_init__(self):
-        if self.abdomen_aero_enabled:
-            raise NotImplementedError(
-                "abdomen aerodynamics is a Level-3 capability (brief §6.5): "
-                "the flag exists but no model is implemented yet"
-            )
+        # abdomen_aero_enabled additionally requires vehicle.abdomen_aero;
+        # checked in FreeBodyPlant (the spec lives on the vehicle)
+        pass
 
 
 @dataclass
@@ -102,6 +101,17 @@ class FreeBodyPlant:
                                vehicle.blade_elements.discretization)
             for w in vehicle.wings
         }
+        # Level-3 abdomen aerodynamics (brief §6.5): requires the vehicle's
+        # abdomen_aero block and an articulated abdomen
+        self.abdomen_aero = None
+        if self.isolation.abdomen_aero_enabled:
+            if vehicle.abdomen_aero is None:
+                raise ValueError(
+                    "abdomen_aero_enabled requires an abdomen_aero block in the "
+                    "vehicle YAML (area, cp_offset, coefficients)")
+            if self.model.nj == 0:
+                raise ValueError("abdomen_aero_enabled requires an articulated abdomen")
+            self.abdomen_aero = AbdomenPlateAero(vehicle.abdomen_aero)
         self.nj = self.model.nj
         # wing structural mass (DR-006): precompute planform mass properties
         # for wings that carry a mass; None entries stay massless
@@ -118,6 +128,8 @@ class FreeBodyPlant:
         self.last_F_wings: dict[str, np.ndarray] = {}
         self.last_lever_arms: dict[str, np.ndarray] = {}
         self.last_F_wing_inertia: dict[str, np.ndarray] = {}
+        self.last_F_abdomen_aero: np.ndarray | None = None
+        self.last_abdomen_alpha: float = 0.0
 
     # --- force assembly -----------------------------------------------------
 
@@ -221,6 +233,26 @@ class FreeBodyPlant:
 
         # --- aero + dynamics
         f_ext, rec = self._aero_wrench(t, qm_eff, u_eff)
+
+        # --- Level-3 abdomen aerodynamics (brief §6.5): flat-plate force at
+        # the abdomen centre of pressure, applied to the abdomen body
+        self.last_F_abdomen_aero = None
+        self.last_abdomen_alpha = 0.0
+        if self.abdomen_aero is not None:
+            abd = self.model.body_names[-1]
+            Js = self.model.body_jacobians(qm_eff)
+            tf = self.model.forward_kinematics(qm_eff)
+            R_abd = tf[abd][0]
+            V_abd = Js[-1] @ u_eff  # spatial velocity, abdomen coords
+            r_cop_abd = np.array([-self.abdomen_aero.cp_offset, 0.0, 0.0])
+            v_cop_W = R_abd @ (V_abd[3:] + cross3(V_abd[:3], r_cop_abd))
+            F_abd_W, alpha_abd = self.abdomen_aero.force(v_cop_W, R_abd, self.env)
+            f_abd = R_abd.T @ F_abd_W
+            f_ext = dict(f_ext or {})
+            f_ext[abd] = f_ext.get(abd, np.zeros(6)) + np.concatenate(
+                [cross3(r_cop_abd, f_abd), f_abd])
+            self.last_F_abdomen_aero = F_abd_W
+            self.last_abdomen_alpha = alpha_abd
 
         # --- wing structural mass (DR-006): fold wing spatial inertia into M
         # and the velocity/prescribed/gravity reaction into the rhs

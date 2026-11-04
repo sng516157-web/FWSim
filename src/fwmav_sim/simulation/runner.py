@@ -73,11 +73,17 @@ def run_free_body(
     has_wing_inertia = bool(plant.last_F_wing_inertia) or any(
         p is not None for p in plant._wing_mass.values())
     F_inertia = {w: np.zeros((n, 3)) for w in wings} if has_wing_inertia else {}
+    has_abdomen_aero = plant.abdomen_aero is not None
+    F_abd = np.zeros((n, 3))
+    alpha_abd_aero = np.zeros(n)
     for i in range(n):
         plant.rhs(float(t[i]), Y[:, i])  # recompute diagnostics at the sample
         alpha_cmd[i] = plant.last_alpha_cmd
         sat[i] = plant.last_saturated
         reaction[i] = plant.last_reaction
+        if has_abdomen_aero and plant.last_F_abdomen_aero is not None:
+            F_abd[i] = plant.last_F_abdomen_aero
+            alpha_abd_aero[i] = plant.last_abdomen_alpha
         qm = np.concatenate([Y[0:3, i], Y[3:7, i], Y[7:7 + nj, i]])
         com[i] = plant.model.com(qm)
         for w in wings:
@@ -96,6 +102,9 @@ def run_free_body(
         channels[f"{w}/lever_arm"] = lever[w]
         if has_wing_inertia:
             channels[f"{w}/F_wing_inertial"] = F_inertia[w]
+    if has_abdomen_aero:
+        channels["abdomen/F_aero"] = F_abd
+        channels["abdomen/alpha_aero"] = alpha_abd_aero
 
     wing_masses = {w.name: plant._wing_mass[w.name].mass
                    for w in plant.vehicle.wings if plant._wing_mass[w.name] is not None}

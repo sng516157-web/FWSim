@@ -207,6 +207,23 @@ class AeroModelSpec(BaseModel):
     coefficients: dict[str, Parameter] = Field(default_factory=dict)
 
 
+class AbdomenAeroSpec(BaseModel):
+    """Level-3 abdomen aerodynamics (brief §6.5): the abdomen as a flat plate
+    with its own centre of pressure and CL/CD fit coefficients (Dickinson-style
+    fits, same functional form as the wing aero; own coefficient set with
+    provenance — abdomen Re differs from wing Re).
+
+    Active only in free_body runs with ``abdomen_aero_enabled: true``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    area: Parameter  # plate area S, m^2
+    cp_offset: Parameter  # centre of pressure distance behind the abdomen joint
+                          # along the abdomen axis, m
+    coefficients: dict[str, Parameter] = Field(default_factory=dict)  # 8 fit coefs
+
+
 class ActuatorSpec(BaseModel):
     """Actuator driving a joint, in one of the staged modes of brief §6.4."""
 
@@ -260,3 +277,4 @@ class VehicleDefinition(BaseModel):
     wings: list[WingSpec] = Field(default_factory=list)
     blade_elements: BladeElementSpec = BladeElementSpec(n_elements=16)
     aero: AeroModelSpec
+    abdomen_aero: AbdomenAeroSpec | None = None  # Level 3 (brief §6.5); None = off

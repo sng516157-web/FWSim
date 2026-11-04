@@ -21,6 +21,14 @@ anti-phase fore/aft kinematics) is the driving case.
 - A CAD import path (e.g., URDF/mesh + mass properties from CAD export) is a
   later work item; no dependency is added before that spike (action plan §5).
 
+## Spike outcome (post-M5 item 3, 2026-11-04)
+
+URDF import landed as `vehicle/urdf_import.py` (stdlib XML only, no new
+dependency): links → bodies (inertial frame rotation handled), revolute
+coordinate-axis joints → JointSpec, fixed joints merged by parallel-axis
+folding. Wings/planforms remain manual (URDF has no planform concept).
+Scope limits and workflow: `docs/milestone_reports/P3_urdf_import.md`.
+
 ## Immediate work item (with M3)
 
 X-wing reference-vehicle support: four wings (fore/aft pairs), per-pair

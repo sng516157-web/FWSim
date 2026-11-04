@@ -1,0 +1,129 @@
+# Vehicle skeleton imported from URDF (DR-004 spike): demo.urdf
+# Bodies/joints carry CAD mass properties (provenance: estimated).
+# Frame convention: URDF frames must already match this project
+# (+x forward, +z down body frame) — pre-rotate at CAD export if not.
+# TODO: author wings/aero manually; joints are serial-chain only.
+name: demo_fwmav
+data_status: 'cad_import_spike (URDF: demo.urdf); wings authored manually'
+bodies:
+- name: thorax
+  mass:
+    value: 0.011
+    unit: kg
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  com_offset:
+    value:
+    - 0.0
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  inertia:
+    value:
+    - - 2.0e-06
+      - 0.0
+      - 0.0
+    - - 0.0
+      - 2.0e-06
+      - 0.0
+    - - 0.0
+      - 0.0
+      - 2.0e-06
+    unit: kg m^2
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  massless: false
+- name: abdomen
+  mass:
+    value: 0.004
+    unit: kg
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  com_offset:
+    value:
+    - -0.015
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  inertia:
+    value:
+    - - 1.0e-07
+      - 0.0
+      - 0.0
+    - - 0.0
+      - 1.0e-06
+      - 0.0
+    - - 0.0
+      - 0.0
+      - 1.0e-06
+    unit: kg m^2
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  massless: false
+joints:
+- name: abdomen_pitch
+  type: revolute
+  parent_body: thorax
+  child_body: abdomen
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  location:
+    value:
+    - -0.015
+    - 0.0
+    - 0.0
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: CAD solid-model mass properties; material density fidelity
+        not verified against hardware
+      calibration_dataset: null
+      valid_regime: null
+      reference: 'CAD export via URDF: demo.urdf (DR-004 import spike)'
+  limits:
+  - -0.6
+  - 0.6
+  damping: null
+wings: []
+blade_elements:
+  n_elements: 16
+  discretization: equal_span
+aero:
+  name: none
+  coefficients: {}

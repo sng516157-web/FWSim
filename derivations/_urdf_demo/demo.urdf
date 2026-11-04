@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<robot name="demo_fwmav">
+  <link name="thorax">
+    <inertial>
+      <mass value="0.011"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="2e-6" ixy="0" ixz="0" iyy="2e-6" iyz="0" izz="2e-6"/>
+    </inertial>
+  </link>
+  <link name="abdomen">
+    <inertial>
+      <mass value="0.004"/>
+      <origin xyz="-0.015 0 0" rpy="0 0 0"/>
+      <inertia ixx="1e-7" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  <joint name="abdomen_pitch" type="revolute">
+    <parent link="thorax"/><child link="abdomen"/>
+    <origin xyz="-0.015 0 0" rpy="0 0 0"/><axis xyz="0 1 0"/>
+    <limit lower="-0.6" upper="0.6" effort="1" velocity="1"/>
+  </joint>
+</robot>

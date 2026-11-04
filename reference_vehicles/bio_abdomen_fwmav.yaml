@@ -158,3 +158,30 @@ aero:
     cd_slope:      {value: 1.55,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954", valid_regime: "Robofly, Re ~ O(100); unverified for this vehicle"}}
     cd_freq:       {value: 2.04,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954"}}
     cd_phase_deg:  {value: 9.82,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999, Science 284:1954"}}
+
+# Level-3 abdomen aerodynamics (brief §6.5; post-M5 item 4). All estimated:
+# the abdomen is a ~30 mm x ~8 mm side-plate profile; the fit functional form
+# is the Dickinson 1999 flat-plate fit reused as a placeholder (the abdomen
+# Reynolds regime differs from the wing Robofly regime — flagged).
+abdomen_aero:
+  area:
+    value: 2.4e-4
+    unit: m^2
+    provenance:
+      source: estimated
+      uncertainty_or_range: "30 mm x 8 mm side profile placeholder; pending CAD/measurement"
+  cp_offset:
+    value: 0.02
+    unit: m
+    provenance:
+      source: estimated
+      uncertainty_or_range: "centre of pressure ~20 mm behind the joint (2/3 of the profile); pending"
+  coefficients:
+    cl_0:          {value: 0.225, unit: "1", provenance: {source: estimated, reference: "Dickinson 1999 functional form as placeholder", valid_regime: "unverified for an abdomen at its Re"}}
+    cl_slope:      {value: 1.58,  unit: "1", provenance: {source: estimated, reference: "as above"}}
+    cl_freq:       {value: 2.13,  unit: "1", provenance: {source: estimated, reference: "as above"}}
+    cl_phase_deg:  {value: 7.20,  unit: deg, provenance: {source: estimated, reference: "as above"}}
+    cd_0:          {value: 1.92,  unit: "1", provenance: {source: estimated, reference: "as above"}}
+    cd_slope:      {value: 1.55,  unit: "1", provenance: {source: estimated, reference: "as above"}}
+    cd_freq:       {value: 2.04,  unit: "1", provenance: {source: estimated, reference: "as above"}}
+    cd_phase_deg:  {value: 9.82,  unit: deg, provenance: {source: estimated, reference: "as above"}}
