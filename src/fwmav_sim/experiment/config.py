@@ -69,6 +69,7 @@ class IsolationFlagsSpec(BaseModel):
     mass_shift_enabled: bool = True
     inertial_coupling_enabled: bool = True
     abdomen_aero_enabled: bool = False
+    wing_inertia_enabled: bool = True  # no-op when all wings are massless
 
 
 class InitialStateFreeSpec(BaseModel):

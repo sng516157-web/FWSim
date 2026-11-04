@@ -17,6 +17,10 @@ import numpy as np
 
 from fwmav_sim.aero.interface import AerodynamicModel, Environment
 from fwmav_sim.core.timeseries import TimeSeries
+from fwmav_sim.dynamics.wing_inertia import (
+    wing_inertial_state,
+    wing_mass_properties,
+)
 from fwmav_sim.kinematics.blade_element import discretize, element_state
 from fwmav_sim.vehicle.schema import VehicleDefinition
 
@@ -50,6 +54,10 @@ def run_fixed_body(
     elements = {
         name: discretize(w, be.n_elements, be.discretization) for name, w in wings.items()
     }
+    # wing structural mass (DR-006): inertial root force/moment channels for
+    # wings that carry a mass — what a force balance measures on a rig on top
+    # of the aerodynamic force (F_sensor = F_aero + F_inertial)
+    inertia_props = {name: wing_mass_properties(w) for name, w in wings.items()}
 
     channels: dict[str, np.ndarray] = {}
     for name, w in wings.items():
@@ -60,6 +68,9 @@ def run_fixed_body(
             "alpha": (n, m), "reynolds": (n, m),
         }.items():
             channels[f"{name}/{key}"] = np.zeros(shape)
+        if inertia_props[name] is not None:
+            for key in ("F_inertial", "M_inertial", "F_sensor"):
+                channels[f"{name}/{key}"] = np.zeros((n, 3))
 
     for i, ti in enumerate(t):
         for name, w in wings.items():
@@ -86,6 +97,14 @@ def run_fixed_body(
             channels[f"{name}/element_force"][i] = F_el
             channels[f"{name}/alpha"][i] = alphas
             channels[f"{name}/reynolds"][i] = res
+            props = inertia_props[name]
+            if props is not None:
+                st = wing_inertial_state(w, kinematics[w.name], props, ti,
+                                         np.eye(3), np.zeros(3), np.zeros(3), np.zeros(3))
+                F_i, N_i, c_W = st.wrench_on_thorax(np.zeros(3), np.zeros(3))
+                channels[f"{name}/F_inertial"][i] = F_i
+                channels[f"{name}/M_inertial"][i] = np.cross(c_W, F_i) + N_i
+                channels[f"{name}/F_sensor"][i] = F_sum + F_i
 
     meta = {
         "kind": "fixed_body",
@@ -95,6 +114,10 @@ def run_fixed_body(
         "wingbeat_period_s": period,
         "vehicle": vehicle.name,
         "aero_model": type(model).__name__,
-        "assumptions": ["A-001", "A-002", "A-003", "A-004", "A-005", "A-006"],
+        "wing_inertia": {name: props.mass for name, props in inertia_props.items()
+                         if props is not None},
+        "assumptions": ["A-001", "A-002", "A-003", "A-004", "A-005", "A-006"]
+                       + (["A-010"] if any(p is not None for p in inertia_props.values())
+                          else []),
     }
     return TimeSeries(t=t, channels=channels, meta=meta)

@@ -1,0 +1,126 @@
+# Reference vehicle: AirPulse WITH wing structural mass (DR-006 variant of
+# airpulse.yaml; 26 g butterfly-inspired tailless FWMAV).
+# Source: Gu et al. 2026 (arXiv:2602.06811) + derivations/airpulse_wingmass.py
+#
+# Wing-mass split FINDING (post-M5 item 1): the paper's "wing assemblies ~38%
+# of flight-ready mass" cannot be the flapping membrane mass under a uniform
+# thin-plate model — 4.88 g/wing at uniform density exceeds the measured
+# whole-robot inertia (Table A1) at neutral stroke. The largest uniform-plate
+# per-wing mass consistent with Table A1 is 0.82 g. The assembly mass must be
+# concentrated in the root mechanism; the moving membrane mass is estimated
+# at 0.5 g per wing (below the bound).
+#
+# Bookkeeping: body mass/inertia below = Table A1 MINUS the planform wing
+# model at neutral configuration (computed by derivations/airpulse_wingmass.py),
+# so total mass and neutral-stroke inertia remain exactly the paper's values.
+name: airpulse_wingmass
+data_status: literature_partial
+
+bodies:
+  - name: body
+    mass:
+      value: 0.0247
+      unit: kg
+      provenance:
+        source: estimated
+        reference: "Table A1 (25.7 g) minus 2 x 0.5 g membrane estimate (derivations/airpulse_wingmass.py)"
+        uncertainty_or_range: "membrane mass estimated; bound 0.82 g/wing from Table A1 consistency"
+    com_offset:
+      value: [0.0, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: literature
+        reference: "B origin at the neutral-stroke CG (Table A1); symmetric wing split keeps the body CoM at the origin"
+    inertia:
+      # Table A1 (flap 0) minus neutral-config planform wing inertia at 0.5 g/wing
+      # (derivations/airpulse_wingmass.py); eigenvalues [1.96e-5, 1.26e-4, 1.87e-4] > 0
+      value: [[1.2836915723285676e-4, -5.42e-7, 1.2380372053877978e-5],
+              [-5.42e-7, 1.966567101028318e-5, 3.010e-6],
+              [1.2380372053877978e-5, 3.010e-6, 1.8484448622257358e-4]]
+      unit: kg m^2
+      provenance:
+        source: estimated
+        reference: "Gu et al. 2026 Table A1 minus planform wing model (derivations/airpulse_wingmass.py)"
+        uncertainty_or_range: "wing membrane mass estimated; remainder inherits that uncertainty"
+
+joints: []   # AirPulse has no articulated abdomen
+
+wings:
+  - name: wing_right
+    side: right
+    span:
+      value: 0.30
+      unit: m
+      provenance:
+        source: literature
+        reference: "arXiv:2602.06811 (60 cm wingspan)"
+        uncertainty_or_range: "per-side assembly; hinge-to-tip approximated"
+    root_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 mean aerodynamic chord", uncertainty_or_range: "rectangular approximation of the swallowtail planform; area and MAC matched"}}
+    tip_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 mean aerodynamic chord", uncertainty_or_range: "rectangular approximation"}}
+    planform: rectangular
+    hinge_location:
+      value: [0.0, 0.01, -0.008]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "servo/hinge location not tabulated in the paper; estimated near the CG-height fuselage side"
+    pitch_axis_fraction:
+      value: 0.0
+      unit: "1"
+      provenance:
+        source: estimated
+        uncertainty_or_range: "leading-edge spar; AirPulse pitch is passive (no actuated axis)"
+    dihedral_angle:
+      value: 0.8727   # 50 deg
+      unit: rad
+      provenance:
+        source: literature
+        reference: "arXiv:2602.06811 (fixed 50 deg V-dihedral)"
+    mass:
+      value: 0.0005
+      unit: kg
+      provenance:
+        source: estimated
+        uncertainty_or_range: "moving membrane estimate; assemblies are ~38% of flight-ready mass (4.88 g/wing) but root-concentrated: uniform-plate consistency with Table A1 bounds the flapping mass to <= 0.82 g/wing (derivations/airpulse_wingmass.py)"
+  - name: wing_left
+    side: left
+    span: {value: 0.30, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    root_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    tip_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    planform: rectangular
+    hinge_location:
+      value: [0.0, -0.01, -0.008]
+      unit: m
+      provenance:
+        source: estimated
+        uncertainty_or_range: "mirrored hinge; estimated"
+    pitch_axis_fraction: {value: 0.0, unit: "1", provenance: {source: estimated, uncertainty_or_range: "leading-edge spar"}}
+    dihedral_angle:
+      value: 0.8727
+      unit: rad
+      provenance: {source: literature, reference: "arXiv:2602.06811 (fixed 50 deg V-dihedral)"}
+    mass:
+      value: 0.0005
+      unit: kg
+      provenance:
+        source: estimated
+        uncertainty_or_range: "moving membrane estimate; see wing_right"
+
+blade_elements:
+  n_elements: 16
+  discretization: equal_span
+
+aero:
+  name: quasi_steady_blade_element
+  coefficients:
+    # Dickinson et al. 1999 (Science 284:1954) Robofly fits. NOTE: AirPulse
+    # hover runs at Re ~ 3e4 (c=0.183 m, ~3.25 Hz, 0.3 m span) — far above the
+    # fits' Robofly regime (Re ~ O(100)); flagged, not hidden.
+    cl_0:          {value: 0.225, unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "Robofly Re ~ O(100); AirPulse Re ~ 3e4: extrapolation, unverified"}}
+    cl_slope:      {value: 1.58,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cl_freq:       {value: 2.13,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cl_phase_deg:  {value: 7.20,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cd_0:          {value: 1.92,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_slope:      {value: 1.55,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_freq:       {value: 2.04,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cd_phase_deg:  {value: 9.82,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999"}}

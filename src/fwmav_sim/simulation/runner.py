@@ -70,6 +70,9 @@ def run_free_body(
     wings = [w.name for w in plant.vehicle.wings]
     F_terms = {w: np.zeros((n, 3)) for w in wings}
     lever = {w: np.zeros((n, 3)) for w in wings}
+    has_wing_inertia = bool(plant.last_F_wing_inertia) or any(
+        p is not None for p in plant._wing_mass.values())
+    F_inertia = {w: np.zeros((n, 3)) for w in wings} if has_wing_inertia else {}
     for i in range(n):
         plant.rhs(float(t[i]), Y[:, i])  # recompute diagnostics at the sample
         alpha_cmd[i] = plant.last_alpha_cmd
@@ -82,6 +85,8 @@ def run_free_body(
             if rec:
                 F_terms[w][i] = rec["F_trans"] + rec["F_rot"] + rec["F_am"]
                 lever[w][i] = rec["r_app_W"] - com[i]
+            if has_wing_inertia:
+                F_inertia[w][i] = plant.last_F_wing_inertia.get(w, np.zeros(3))
     channels["alpha_commanded"] = alpha_cmd
     channels["actuator_saturated"] = sat
     channels["reaction_torques"] = reaction
@@ -89,14 +94,22 @@ def run_free_body(
     for w in wings:
         channels[f"{w}/F_aero_total"] = F_terms[w]
         channels[f"{w}/lever_arm"] = lever[w]
+        if has_wing_inertia:
+            channels[f"{w}/F_wing_inertial"] = F_inertia[w]
 
+    wing_masses = {w.name: plant._wing_mass[w.name].mass
+                   for w in plant.vehicle.wings if plant._wing_mass[w.name] is not None}
     meta = {"kind": "free_body", "status": status,
             "solver": {"integrator": solver.integrator, "rtol": solver.rtol,
                        "atol": solver.atol,
                        "steps_per_wingbeat": solver.steps_per_wingbeat},
             "abdomen_mode": plant.control.mode,
+            "wing_mass_kg": wing_masses,
             "isolation": {"mass_shift_enabled": plant.isolation.mass_shift_enabled,
                           "inertial_coupling_enabled": plant.isolation.inertial_coupling_enabled,
-                          "abdomen_aero_enabled": plant.isolation.abdomen_aero_enabled},
-            "assumptions": ["A-001", "A-002", "A-003", "A-004", "A-005", "A-006", "A-008", "A-009"]}
+                          "abdomen_aero_enabled": plant.isolation.abdomen_aero_enabled,
+                          "wing_inertia_enabled": plant.isolation.wing_inertia_enabled},
+            "assumptions": ["A-001", "A-002", "A-003", "A-004", "A-005", "A-006", "A-008", "A-009"]
+                           + (["A-010"] if wing_masses and plant.isolation.wing_inertia_enabled
+                              else [])}
     return TimeSeries(t=t, channels=channels, meta=meta), status, extra

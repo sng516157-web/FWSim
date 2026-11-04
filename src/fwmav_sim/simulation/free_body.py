@@ -6,12 +6,19 @@ abdomen control (locked / prescribed / profile-limited / torque-driven) +
 mechanism-isolation switches (brief §6.6).
 
 Force mapping: each blade element's aerodynamic force is applied to the
-thorax as a spatial force (wings are rigidly attached; wings are massless in
-this model — recorded limitation, M2 report). The generalized force is
-J^T F via the thorax wrench (brief §5.4); per-term forces remain inspectable.
+thorax as a spatial force (wings are rigidly attached); the generalized force
+is J^T F via the thorax wrench (brief §5.4); per-term forces remain
+inspectable.
 
-Assumption notes: A-004 (prescribed wing kinematics), A-009 (added-mass term
-excludes body accelerations).
+Wing structural mass (post-M5, DR-006 / A-010): wings with ``mass`` set in
+the vehicle YAML are kinematically driven rigid appendages — their spatial
+inertia folds into the base block of M(q) and their velocity/prescribed/
+gravity reaction wrench joins the right-hand side
+(dynamics/wing_inertia.py). Wings without a mass stay massless (the M1-M5
+default). Switchable via IsolationSpec.wing_inertia_enabled (brief §6.6).
+
+Assumption notes: A-004 (prescribed wing kinematics), A-009 (fluid added-mass
+term excludes body accelerations), A-010 (wing mass as uniform thin plate).
 """
 
 from __future__ import annotations
@@ -27,6 +34,11 @@ from fwmav_sim.actuation.torque_driven import TorqueActuator
 from fwmav_sim.aero.interface import AerodynamicModel, Environment
 from fwmav_sim.core.transforms import cross3, quat_normalize, quat_to_matrix
 from fwmav_sim.dynamics.spatial import ArticulatedModel
+from fwmav_sim.dynamics.wing_inertia import (
+    wing_inertial_state,
+    wing_inertial_terms,
+    wing_mass_properties,
+)
 from fwmav_sim.kinematics.blade_element import discretize
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics
 from fwmav_sim.vehicle.schema import VehicleDefinition
@@ -39,6 +51,7 @@ class IsolationSpec:
     mass_shift_enabled: bool = True
     inertial_coupling_enabled: bool = True
     abdomen_aero_enabled: bool = False  # stub: raises until the Level-3 model exists
+    wing_inertia_enabled: bool = True  # wing structural mass (DR-006); no-op if massless
 
     def __post_init__(self):
         if self.abdomen_aero_enabled:
@@ -90,6 +103,11 @@ class FreeBodyPlant:
             for w in vehicle.wings
         }
         self.nj = self.model.nj
+        # wing structural mass (DR-006): precompute planform mass properties
+        # for wings that carry a mass; None entries stay massless
+        self._wing_mass = {
+            w.name: wing_mass_properties(w) for w in vehicle.wings
+        }
         # extra plant states: profile limiter [alpha_lim, alpha_dot_lim]
         self.n_extra = 2 if self.control.mode == "profile_limited" else 0
         self.ny = 7 + self.nj + 6 + self.nj + self.n_extra
@@ -99,6 +117,7 @@ class FreeBodyPlant:
         self.last_saturated = False
         self.last_F_wings: dict[str, np.ndarray] = {}
         self.last_lever_arms: dict[str, np.ndarray] = {}
+        self.last_F_wing_inertia: dict[str, np.ndarray] = {}
 
     # --- force assembly -----------------------------------------------------
 
@@ -202,10 +221,36 @@ class FreeBodyPlant:
 
         # --- aero + dynamics
         f_ext, rec = self._aero_wrench(t, qm_eff, u_eff)
+
+        # --- wing structural mass (DR-006): fold wing spatial inertia into M
+        # and the velocity/prescribed/gravity reaction into the rhs
+        m_extra = None
+        rhs_extra = None
+        wing_states: list[tuple[str, object]] = []
+        if self.isolation.wing_inertia_enabled and any(
+                p is not None for p in self._wing_mass.values()):
+            m_extra = np.zeros((self.model.nv, self.model.nv))
+            rhs_extra = np.zeros(self.model.nv)
+            for wing in self.vehicle.wings:
+                props = self._wing_mass[wing.name]
+                if props is None:
+                    continue
+                st = wing_inertial_state(wing, self.kinematics_map[wing.name], props,
+                                         t, R_wb, p, w_B, u_eff[3:6])
+                M_add, Q_bias = wing_inertial_terms(st)
+                m_extra[:6, :6] += M_add
+                rhs_extra[:6] += Q_bias
+                wing_states.append((wing.name, st))
+
         ud, tau_full = self.model.forward_dynamics(
-            qm_eff, u_eff, tau, f_ext=f_ext, prescribed_joints=prescribed_eff or None)
+            qm_eff, u_eff, tau, f_ext=f_ext, prescribed_joints=prescribed_eff or None,
+            m_extra=m_extra, rhs_extra=rhs_extra)
         self.last_reaction = tau_full[6:6 + nj]
         self.last_F_wings = rec
+        self.last_F_wing_inertia = {
+            name: st.wrench_on_thorax(ud[:3], ud[3:6])[0]
+            for name, st in wing_states
+        }
 
         # lever arms: force application point - instantaneous CoM (brief §10 M3)
         r_com = self.model.com(qm_eff)

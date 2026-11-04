@@ -116,13 +116,19 @@ _ELEM = {"x": Rx, "y": Ry, "z": Rz}
 
 def _chain_with_rates(
     terms: list[tuple[str, float, float, float]],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """DCM R = R1 R2 ... Rn and its first two time derivatives.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """DCM R = R1 R2 ... Rn, its first two time derivatives, and angular
+    velocity/acceleration in the child frame.
 
     Each term is (axis, angle, rate, rrate) for an elementary rotation
-    R_i = R_axis(angle). Returns (R, dR, ddR, omega_body) where omega_body is
-    the chain's angular velocity expressed in the final (child) frame.
+    R_i = R_axis(angle). Returns (R, dR, ddR, omega_body, alpha_body) where
+    omega_body / alpha_body are the chain's angular velocity / componentwise
+    angular acceleration expressed in the final (child) frame.
     Uses dRi = Ri [axis]x * rate, ddRi = Ri ([axis]x^2 rate^2 + [axis]x rrate).
+    alpha_body = d(omega_body)/dt = sum_i [ d(S_i^T)/dt axis_i rate_i
+    + S_i^T axis_i rrate_i ] with S_i = R_{i+1}..R_n and
+    dS_i/dt = sum_{j>i} R_{i+1}..dR_j..R_n (needed by the wing-inertia terms,
+    dynamics/wing_inertia.py; verified by finite difference in the tests).
     """
     n = len(terms)
     Rs, dRs, ddRs = [], [], []
@@ -134,43 +140,50 @@ def _chain_with_rates(
         dRs.append(Ri @ sx * rate)
         ddRs.append(Ri @ (sx @ sx * rate * rate + sx * rrate))
 
-    R = np.eye(3)
-    for Ri in Rs:
-        R = R @ Ri
-    # prefix products P_i = R_1 ... R_i and suffix products S_i = R_i ... R_n
+    # prefix products pre[i] = R_0..R_{i-1} and suffix suf[i] = R_i..R_{n-1}
+    pre = [np.eye(3)]
+    for i in range(n):
+        pre.append(pre[i] @ Rs[i])
+    suf = [np.eye(3)] * (n + 1)
+    for i in range(n - 1, -1, -1):
+        suf[i] = Rs[i] @ suf[i + 1]
+    # dsuf[i] = d(suf[i])/dt
+    dsuf = [np.zeros((3, 3)) for _ in range(n + 1)]
+    for i in range(n - 1, -1, -1):
+        acc = np.zeros((3, 3))
+        mid = np.eye(3)
+        for j in range(i, n):
+            acc += mid @ dRs[j] @ suf[j + 1]
+            mid = mid @ Rs[j]
+        dsuf[i] = acc
+
+    R = pre[n]
     dR = np.zeros((3, 3))
     ddR = np.zeros((3, 3))
     for i in range(n):
-        pre = np.eye(3)
-        for j in range(i):
-            pre = pre @ Rs[j]
-        post = np.eye(3)
-        for j in range(i + 1, n):
-            post = post @ Rs[j]
-        dR += pre @ dRs[i] @ post
-        ddR += pre @ ddRs[i] @ post
+        dR += pre[i] @ dRs[i] @ suf[i + 1]
+        ddR += pre[i] @ ddRs[i] @ suf[i + 1]
         for j in range(i + 1, n):
             mid = np.eye(3)
             for k in range(i + 1, j):
                 mid = mid @ Rs[k]
-            post_j = np.eye(3)
-            for k in range(j + 1, n):
-                post_j = post_j @ Rs[k]
-            ddR += 2.0 * pre @ dRs[i] @ mid @ dRs[j] @ post_j
-    # angular velocity in the child frame: sum_i (R_{i+1}..R_n)^T axis_i rate_i
+            ddR += 2.0 * pre[i] @ dRs[i] @ mid @ dRs[j] @ suf[j + 1]
+    # angular velocity in the child frame: sum_i S_i^T axis_i rate_i
     omega = np.zeros(3)
+    alpha = np.zeros(3)
     for i in range(n):
-        post = np.eye(3)
-        for j in range(i + 1, n):
-            post = post @ Rs[j]
-        omega += post.T @ (_AXIS[terms[i][0]] * terms[i][2])
-    return R, dR, ddR, omega
+        ax = _AXIS[terms[i][0]]
+        omega += suf[i + 1].T @ (ax * terms[i][2])
+        alpha += dsuf[i + 1].T @ (ax * terms[i][2]) + suf[i + 1].T @ (ax * terms[i][3])
+    return R, dR, ddR, omega, alpha
 
 
-def wing_chain(
+def wing_chain_with_alpha(
     kin_state: WingKinematicState, side: Literal["right", "left"] = "right"
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """R_SP_WR with its first two derivatives and omega in WR (frames.md §3-4)."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """R_SP_WR with its first two derivatives plus omega and alpha in WR
+    (frames.md §3-4). alpha is the componentwise child-frame angular
+    acceleration (chain derivative, not the rigid-body alpha vector)."""
     s = kin_state
     if side == "right":
         terms = [
@@ -185,10 +198,18 @@ def wing_chain(
             ("x", -s.psi_w, -s.psi_w_dot, -s.psi_w_ddot),
             ("y", s.theta_w, s.theta_w_dot, s.theta_w_ddot),
         ]
-        R, dR, ddR, omega = _chain_with_rates(terms)
+        R, dR, ddR, omega, alpha = _chain_with_rates(terms)
         R0 = Rx(np.pi)  # constant left-wing base orientation (frames.md §4)
-        return R @ R0, dR @ R0, ddR @ R0, R0.T @ omega
+        return R @ R0, dR @ R0, ddR @ R0, R0.T @ omega, R0.T @ alpha
     raise ValueError(f"side must be 'right' or 'left', got {side!r}")
+
+
+def wing_chain(
+    kin_state: WingKinematicState, side: Literal["right", "left"] = "right"
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """R_SP_WR with its first two derivatives and omega in WR (frames.md §3-4)."""
+    R, dR, ddR, omega, _ = wing_chain_with_alpha(kin_state, side)
+    return R, dR, ddR, omega
 
 
 # --- element state --------------------------------------------------------------

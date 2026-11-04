@@ -9,6 +9,7 @@ JSON), ``view`` (live MeshCat scene). Further subcommands (validate / compare
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 import fwmav_sim
@@ -57,6 +58,18 @@ def main() -> int:
                         help="playback speed fraction (0.05 = 20x slowdown)")
     p_view.add_argument("--force-scale", type=float, default=5.0,
                         help="force arrow display scale, metres per newton")
+
+    p_sens = sub.add_parser("sensitivity",
+                            help="one-at-a-time parameter sensitivity (post-M5 item 2)")
+    p_sens.add_argument("experiment", type=Path)
+    p_sens.add_argument("--param", action="append", default=None,
+                        help="parameter path (repeatable); default: all scalar vehicle/"
+                             "kinematics/environment parameters")
+    p_sens.add_argument("--rel", type=float, default=0.05,
+                        help="relative perturbation step (default 0.05 = 5 %%)")
+    p_sens.add_argument("--metric", default=None,
+                        help="metric for the ranked table (default: kind-specific)")
+    p_sens.add_argument("--out", type=Path, default=Path("outputs"))
 
     sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
 
@@ -147,6 +160,31 @@ def main() -> int:
         from fwmav_sim.ui.app import main as gui_main
 
         return gui_main()
+
+    if args.command == "sensitivity":
+        import json
+
+        from fwmav_sim.analysis.sensitivity import report_markdown, sensitivity_analysis
+
+        base, entries = sensitivity_analysis(args.experiment, params=args.param,
+                                             rel_step=args.rel)
+        metric = args.metric or ("meanFz_total" if "meanFz_total" in base
+                                 else next(iter(base)))
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = args.out / f"{stamp}_sensitivity_{args.experiment.stem}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "sensitivity.json").write_text(
+            json.dumps({"experiment": str(args.experiment), "rel_step": args.rel,
+                        "baseline": base,
+                        "entries": [{"path": e.path, "base_value": e.base_value,
+                                     "step": e.step, "sensitivities": e.sensitivities,
+                                     "status": e.status} for e in entries]},
+                       indent=2), encoding="utf-8")
+        md = report_markdown(str(args.experiment), base, entries, metric)
+        (out_dir / "report.md").write_text(md, encoding="utf-8")
+        print(md)
+        print(f"sensitivity record: {out_dir}")
+        return 0
 
     return 1
 

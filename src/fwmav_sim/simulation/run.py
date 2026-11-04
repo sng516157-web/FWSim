@@ -193,6 +193,13 @@ def _run_free_body(exp, experiment_path):
     ])
 
     ts, status, extra = run_free_body(plant, exp.solver, y0)
+    wing_masses = ts.meta.get("wing_mass_kg", {})
+    wing_note = (
+        "Wing structural mass active (DR-006, A-010): planform-derived thin-plate "
+        "wing inertia folded into the base mass matrix."
+        if wing_masses and plant.isolation.wing_inertia_enabled else
+        "Wings massless; wing flapping actuator reaction torques not modelled (A-004)."
+    )
     extra_meta = {
         "experiment_file": str(experiment_path),
         "vehicle_file": str(vehicle_path),
@@ -205,7 +212,7 @@ def _run_free_body(exp, experiment_path):
                 "Time-resolved quasi-steady aero coupled to free-body dynamics; "
                 "coefficients unverified for this vehicle (A-003, A-008).",
                 "Added-mass term excludes body accelerations (A-009).",
-                "Wings massless; wing flapping actuator reaction torques not modelled (A-004).",
+                wing_note,
             ],
         },
     }
@@ -255,18 +262,29 @@ def _abdomen_control(exp, vehicle):
     raise ValueError(f"unknown abdomen mode {abdomen.mode!r}")
 
 
+def dispatch_experiment(experiment_path: str | Path):
+    """Load and run an experiment WITHOUT saving a record.
+
+    Returns (TimeSeries, vehicle_path, extra_meta) — the same objects
+    run_experiment persists. Used by the sensitivity analysis (in-process
+    reruns over patched YAMLs) and by run_experiment itself.
+    """
+    experiment_path = Path(experiment_path)
+    exp = load_experiment(experiment_path)
+    if exp.kind == "fixed_body":
+        return _run_fixed_body(exp, experiment_path)
+    if exp.kind == "suspended_pendulum":
+        return _run_suspended_pendulum(exp, experiment_path)
+    if exp.kind == "free_reduced":
+        return _run_free_reduced(exp, experiment_path)
+    if exp.kind == "free_body":
+        return _run_free_body(exp, experiment_path)
+    raise ValueError(f"unknown experiment kind {exp.kind!r}")
+
+
 def run_experiment(experiment_path: str | Path, out_root: str | Path = "outputs") -> Path:
     """Run an experiment YAML and save the run record; returns the directory."""
     experiment_path = Path(experiment_path)
     exp = load_experiment(experiment_path)
-    if exp.kind == "fixed_body":
-        ts, vehicle_path, extra_meta = _run_fixed_body(exp, experiment_path)
-    elif exp.kind == "suspended_pendulum":
-        ts, vehicle_path, extra_meta = _run_suspended_pendulum(exp, experiment_path)
-    elif exp.kind == "free_reduced":
-        ts, vehicle_path, extra_meta = _run_free_reduced(exp, experiment_path)
-    elif exp.kind == "free_body":
-        ts, vehicle_path, extra_meta = _run_free_body(exp, experiment_path)
-    else:
-        raise ValueError(f"unknown experiment kind {exp.kind!r}")
+    ts, vehicle_path, extra_meta = dispatch_experiment(experiment_path)
     return save_record(out_root, exp.name, ts, experiment_path, vehicle_path, extra_meta)

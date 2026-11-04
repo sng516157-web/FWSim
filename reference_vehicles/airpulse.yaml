@@ -10,12 +10,13 @@
 # with inertia cross-term signs adjusted (I_xy, I_xz flip, I_yz unchanged).
 #
 # Documented approximations (each flagged in the field's provenance):
-#  - Wings are massless in our current model, but this platform's wings are
+#  - Wings were massless through M5, but this platform's wings are
 #    38% of the total mass and their inertial motion is the paper's central
 #    phenomenon. We encode the WHOLE-ROBOT neutral-configuration mass
-#    properties (Table A1, flap angle 0) on the body. This is our largest
-#    model-fidelity gap for this vehicle — wing-mass bodies are a planned
-#    schema/dynamics extension.
+#    properties (Table A1, flap angle 0) on the body. Post-M5 (DR-006) the
+#    schema supports wing mass; see airpulse_wingmass.yaml — note the 38%
+#    assembly mass is INCONSISTENT with Table A1 under a uniform-plate wing
+#    (derivations/airpulse_wingmass.py), hence the membrane estimate there.
 #  - Wing planform approximated as rectangular at the paper's mean
 #    aerodynamic chord (the paper's swallowtail planform is B-spline
 #    parameterised; area and MAC are matched).

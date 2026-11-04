@@ -275,15 +275,22 @@ class ArticulatedModel:
                          f_ext: dict[str, np.ndarray] | None = None,
                          gravity: bool = True,
                          prescribed_joints: dict[int, tuple[float, float]] | None = None,
+                         m_extra: np.ndarray | None = None,
+                         rhs_extra: np.ndarray | None = None,
                          ) -> tuple[np.ndarray, np.ndarray]:
         """Solve M u_dot = tau + Q_ext - bias (direct 8x8 factorization).
 
         prescribed_joints: {joint_index: (qd, qdd)} — the joint motion is
         imposed (brief §6.4 stages 1-2); the free DoFs are solved by
         partition and the required actuator torque is returned.
+        m_extra / rhs_extra: optional additions to the mass matrix and the
+        right-hand side (kinematically driven appendages — wing structural
+        mass, DR-006 — fold their spatial inertia into M this way).
         Returns (u_dot, tau_full) with tau_full = tau + reaction torques.
         """
         M = self.crba(q)
+        if m_extra is not None:
+            M = M + np.asarray(m_extra, dtype=float)
         Q_ext = np.zeros(self.nv)
         if f_ext:
             Js = self.body_jacobians(q)
@@ -291,6 +298,8 @@ class ArticulatedModel:
                 if name in f_ext:
                     Q_ext += Js[i].T @ np.asarray(f_ext[name], dtype=float)
         rhs = np.asarray(tau, dtype=float) + Q_ext - self.bias(q, u, gravity=gravity)
+        if rhs_extra is not None:
+            rhs = rhs + np.asarray(rhs_extra, dtype=float)
 
         if not prescribed_joints:
             return np.linalg.solve(M, rhs), np.asarray(tau, dtype=float)

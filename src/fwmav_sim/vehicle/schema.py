@@ -162,6 +162,17 @@ class WingSpec(BaseModel):
     )
     # per-wing stroke-plane dihedral (DR-005; default None = 0 = frozen chain)
     dihedral_angle: Parameter | None = None  # rad; positive = tips up
+    # wing structural mass (post-M5, DR-006 / A-010); None = massless wing
+    # (M1-M5 default). When set, mass properties derive from the planform as a
+    # uniform-areal-density thin plate (dynamics/wing_inertia.py).
+    mass: Parameter | None = None  # kg
+
+    @field_validator("mass")
+    @classmethod
+    def _mass_positive(cls, m: Parameter | None) -> Parameter | None:
+        if m is not None and m.value <= 0:
+            raise ValueError("wing mass must be positive (or omit for a massless wing)")
+        return m
 
     @field_validator("span", "root_chord", "tip_chord")
     @classmethod
