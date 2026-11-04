@@ -29,21 +29,23 @@ from fwmav_sim.core.transforms import Rx, Ry, Rz, quat_to_matrix, skew
 
 
 def xform_motion(R: np.ndarray, p: np.ndarray) -> np.ndarray:
-    """Spatial motion transform V_A = X V_B; p = origin of B in A coords."""
+    """Spatial motion transform V_A = X V_B; R = R_A_B maps B coords -> A
+    coords; p = origin of the TARGET frame A expressed in the SOURCE frame B.
+
+    V = [omega; v] with v the velocity of the body-point at the frame origin:
+        omega_A = R omega_B
+        v_A     = R v_B - R (omega_B x p) = R v_B - R skew(p) omega_B
+    """
     X = np.zeros((6, 6))
     X[:3, :3] = R
-    X[3:, :3] = skew(p) @ R
+    X[3:, :3] = -R @ skew(p)
     X[3:, 3:] = R
     return X
 
 
 def xform_force(R: np.ndarray, p: np.ndarray) -> np.ndarray:
     """Spatial force transform F_A = X* F_B (dual of xform_motion)."""
-    X = np.zeros((6, 6))
-    X[:3, :3] = R
-    X[:3, 3:] = skew(p) @ R
-    X[3:, 3:] = R
-    return X
+    return np.linalg.inv(xform_motion(R, p)).T
 
 
 def cross_motion(v: np.ndarray, m: np.ndarray) -> np.ndarray:
@@ -128,7 +130,9 @@ class ArticulatedModel:
             if not np.isclose(abs(axis).sum(), 1.0):
                 raise NotImplementedError("coordinate-axis joints only")
             sign = float(np.sign(axis[np.argmax(np.abs(axis))]))
-            R_j = _AXIS_ROT[key](sign * qj[j])  # child -> parent rotation about the axis
+            # child frame is rotated +q about the axis relative to the parent,
+            # so the parent->child DCM is R_axis(-q) = R_axis(q)^T
+            R_j = _AXIS_ROT[key](-sign * qj[j])
             out.append(xform_motion(R_j, np.asarray(joint.location.value, float)))
         return out
 
@@ -170,7 +174,7 @@ class ArticulatedModel:
             axis = np.asarray(joint.axis, dtype=float)
             key = "xyz"[int(np.argmax(np.abs(axis)))]
             sign = float(np.sign(axis[np.argmax(np.abs(axis))]))
-            R_j = _AXIS_ROT[key](sign * qj[j])
+            R_j = _AXIS_ROT[key](-sign * qj[j])  # parent -> child DCM
             Xj.append(xform_motion(R_j, np.asarray(joint.location.value, float)))
             S.append(np.concatenate([axis, np.zeros(3)]))
         Js = [np.hstack([np.eye(6), np.zeros((6, self.nj))])]  # base: identity
@@ -196,6 +200,24 @@ class ArticulatedModel:
             M += J.T @ I_b @ J
         return M
 
+    def _dX_up_dt(self, j: int, qj: np.ndarray) -> np.ndarray:
+        """Time derivative of X_up[j+1] (joint j's parent->child transform)
+        divided by qd_j, i.e. dX/dq_j. With X = xform_motion(R(-q), r):
+        dR(-q)/dt = (-R(-q) skew(axis)) * qd_j, so dX/dq_j has blocks
+        [-R skew(a), 0; R skew(a) skew(r), -R skew(a)]."""
+        joint = self.joints[j]
+        axis = np.asarray(joint.axis, dtype=float)
+        key = "xyz"[int(np.argmax(np.abs(axis)))]
+        sign = float(np.sign(axis[np.argmax(np.abs(axis))]))
+        R_jm = _AXIS_ROT[key](-sign * qj[j])
+        dR = -sign * R_jm @ skew(axis)
+        r = np.asarray(joint.location.value, float)
+        dX = np.zeros((6, 6))
+        dX[:3, :3] = dR
+        dX[3:, :3] = -dR @ skew(r)
+        dX[3:, 3:] = dR
+        return dX
+
     def rnea(self, q: np.ndarray, u: np.ndarray, qdd: np.ndarray,
              f_ext: dict[str, np.ndarray] | None = None,
              gravity: bool = True) -> np.ndarray:
@@ -214,13 +236,21 @@ class ArticulatedModel:
         V = [None] * (self.nj + 1)
         A = [None] * (self.nj + 1)
         V[0] = u[:6]
+        # spatial accelerations use componentwise rates (verified against the
+        # energy-derived Jacobian bias, derivations/probe_bias2.py)
         A[0] = qdd[:6].copy()
         if gravity:
             A[0][3:] -= R_wb.T @ np.array([0.0, 0.0, 9.81])  # oppose gravity
         for j in range(self.nj):
             i = j + 1
+            # componentwise acceleration recursion (probe_accel.py verified):
+            # A_i = X_up A_parent + (dX_up/dt) V_parent + S qdd  — the
+            # dX_up/dt term (NOT v x S qd) is the consistent Coriolis term when
+            # spatial accelerations are componentwise derivatives; see the
+            # module docstring and DR-001-outcome.
             V[i] = X_up[i] @ V[j] + S[j] * u[6 + j]
-            A[i] = X_up[i] @ A[j] + S[j] * qdd[6 + j] + cross_motion(V[i], S[j] * u[6 + j])
+            A[i] = X_up[i] @ A[j] + (self._dX_up_dt(j, qj) * u[6 + j]) @ V[j] \
+                + S[j] * qdd[6 + j]
 
         # inward pass (single serial chain): f[i] = own wrench + child pulled up
         f = [None] * (self.nj + 1)
@@ -230,18 +260,21 @@ class ArticulatedModel:
             if name in f_ext:
                 f_i = f_i - np.asarray(f_ext[name], dtype=float)
             if i < self.nj:
-                f_i = f_i + xform_force_from_motion(X_up[i + 1]) @ f[i + 1]
+                # child force pulled into the parent frame: power conservation
+                # V_child = X_up V_parent  =>  F_parent += X_up^T F_child
+                f_i = f_i + X_up[i + 1].T @ f[i + 1]
             f[i] = f_i
         tau = [S[j] @ f[j + 1] for j in range(self.nj)]
         return np.concatenate([f[0], np.asarray(tau)])
 
-    def bias(self, q: np.ndarray, u: np.ndarray) -> np.ndarray:
-        """C(q, u) u + G(q) via RNEA with qdd = 0."""
-        return self.rnea(q, u, np.zeros(self.nv))
+    def bias(self, q: np.ndarray, u: np.ndarray, gravity: bool = True) -> np.ndarray:
+        """C(q, u) u + G(q) via RNEA with qdd = 0 (G included iff gravity)."""
+        return self.rnea(q, u, np.zeros(self.nv), gravity=gravity)
 
     def forward_dynamics(self, q: np.ndarray, u: np.ndarray, tau: np.ndarray,
-                         f_ext: dict[str, np.ndarray] | None = None) -> np.ndarray:
-        """Solve M qdd = tau + Q_ext - bias (direct 8x8 factorization)."""
+                         f_ext: dict[str, np.ndarray] | None = None,
+                         gravity: bool = True) -> np.ndarray:
+        """Solve M u_dot = tau + Q_ext - bias (direct 8x8 factorization)."""
         M = self.crba(q)
         Q_ext = np.zeros(self.nv)
         if f_ext:
@@ -249,7 +282,7 @@ class ArticulatedModel:
             for i, name in enumerate(self.body_names):
                 if name in f_ext:
                     Q_ext += Js[i].T @ np.asarray(f_ext[name], dtype=float)
-        rhs = np.asarray(tau, dtype=float) + Q_ext - self.bias(q, u)
+        rhs = np.asarray(tau, dtype=float) + Q_ext - self.bias(q, u, gravity=gravity)
         return np.linalg.solve(M, rhs)
 
     def reaction_torques(self, q: np.ndarray, u: np.ndarray, qdd: np.ndarray,
