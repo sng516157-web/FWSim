@@ -70,11 +70,13 @@ names the milestone.
 
 | Brief §11.4 bullet | Test function | File | Milestone |
 |---|---|---|---|
-| Published analytical/numerical comparison | `test_leng2024_suspended_comparison` (skip: awaiting original data, brief §12) | `tests/validation/test_leng2024.py` | M4 (PENDING data) |
-| Suspended-abdomen experiment comparison | `test_suspended_abdomen_comparison` (same dataset dependency) | `tests/validation/test_leng2024.py` | M4 (PENDING data) |
-| Free-flight validation when data become available | `test_free_flight_comparison` (skip: no data) | `tests/validation/test_free_flight.py` | M4+ (PENDING data) |
+| Published analytical/numerical comparison | `test_leng2024_suspended_comparison` (skip: no such dataset exists — confirmed by co-author 2026-11-04) | `tests/validation/test_leng2024.py` | closed (no data) |
+| Suspended-abdomen experiment comparison | `test_suspended_abdomen_comparison` (same closure) | `tests/validation/test_leng2024.py` | closed (no data) |
+| Free-flight validation when data become available | `test_free_flight_comparison` (skip: no free-flight dataset exists) | `tests/validation/test_free_flight.py` | closed (no data) |
+| *(M4)* dataset machinery | `test_datasets.py` (importer/alignment/filtering/metrics, real) | `tests/unit/test_datasets.py` | M4 ✔ |
+| *(M4)* AirPulse literature rig comparison | `analysis/airpulse_rig.py` + `experiments/m4_airpulse_rig.yaml` (scripted, honest failure recorded) | — | M4 ✔ |
 | Mechanism-ablation comparisons | `test_mechanism_isolation_cases` (real) + `test_abdomen_aero_flag_raises` (real) | `tests/validation/test_mechanism_isolation.py` | M3 ✔ |
-| *(pipeline proof without validation claim)* | `test_synthetic_dataset_roundtrip` | `tests/validation/test_synthetic_pipeline.py` | M4 |
+| *(pipeline proof without validation claim)* | `test_synthetic_dataset_roundtrip` (real) | `tests/validation/test_synthetic_pipeline.py` | M4 ✔ |
 
 ## Rules
 

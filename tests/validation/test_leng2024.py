@@ -8,7 +8,8 @@ validation (brief §14.5).
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="awaiting original data — Leng et al. IMAV 2024 (M4)")
+pytestmark = pytest.mark.skip(
+    reason="no original dataset exists (confirmed by co-author, 2026-11-04)")
 
 
 def test_leng2024_suspended_comparison():

@@ -38,6 +38,19 @@ def main() -> int:
     p_rerun.add_argument("record_dir", type=Path)
     p_rerun.add_argument("--out", type=Path, default=Path("outputs"))
 
+    p_cmp = sub.add_parser("compare", help="compare a run record against a dataset (M4)")
+    p_cmp.add_argument("record_dir", type=Path)
+    p_cmp.add_argument("dataset_dir", type=Path)
+    p_cmp.add_argument("--sim-channel", required=True,
+                       help="simulated channel, e.g. wing_right/F_total")
+    p_cmp.add_argument("--exp-column", default=None,
+                       help="dataset column (default: sim channel with / -> _)")
+    p_cmp.add_argument("--component", type=int, default=None,
+                       help="vector component index for vector channels")
+    p_cmp.add_argument("--filter-cutoff", type=float, default=None,
+                       help="Hz; apply the same zero-phase 4th-order lowpass to both series")
+    p_cmp.add_argument("--out", type=Path, default=Path("outputs"))
+
     p_view = sub.add_parser("view", help="live 3D MeshCat view of an experiment or run record")
     p_view.add_argument("source", type=Path, help="experiment YAML or run-record directory")
     p_view.add_argument("--speed", type=float, default=0.05,
@@ -106,6 +119,18 @@ def main() -> int:
         else:
             print(f"rerun: max abs diff {max_diff:.3e} ({new_dir})")
         return 0 if bitexact else 2
+
+    if args.command == "compare":
+        from fwmav_sim.analysis.compare import compare
+        from fwmav_sim.datasets.filtering import FilterSpec
+
+        fs = (FilterSpec(cutoff_hz=args.filter_cutoff,
+                         rationale="CLI --filter-cutoff; applied to both series")
+              if args.filter_cutoff else None)
+        report_dir = compare(args.record_dir, args.dataset_dir, args.sim_channel,
+                             args.exp_column, args.out, fs, component=args.component)
+        print(f"comparison report: {report_dir}")
+        return 0
 
     if args.command == "view":
         from fwmav_sim.viz.meshcat_scene import replay_record, serve_live

@@ -1,0 +1,25 @@
+columns:
+  t:
+    frame: W
+    quantity: time
+    unit: s
+  wing_right_F_total:
+    frame: W
+    note: simulated truth with known offset/noise
+    quantity: wing_right/F_total
+    unit: N
+label: calibration
+name: synthetic_wing_right_F_total
+notes: 'known_noise_std_rel: 0.02
+
+  known_phase_offset_s: 0.012
+
+  seed: 42
+
+  source_record: outputs/20261104_120747_m1_fixed_body_hover
+
+  '
+provenance: 'synthetic known-truth: NOT validation data (brief 14.5)'
+sampling_rate_hz: 222.0
+source: generated from run record outputs/20261104_120747_m1_fixed_body_hover
+synthetic: true

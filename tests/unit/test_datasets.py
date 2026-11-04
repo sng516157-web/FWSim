@@ -69,7 +69,8 @@ def test_alignment_recovers_known_phase_offset():
     e = np.sin(2 * np.pi * f * (t - tau)) + 0.01 * np.random.default_rng(0).normal(size=len(t))
     assert abs(dominant_frequency(t, s) - f) < 0.1
     offset, drift = estimate_offset(t, s, t, e, f)
-    assert abs(offset - (-tau)) < 0.001 * (1.0 / f)  # < 0.1% of a wingbeat
+    # exp delayed by tau (content later) => offset = -tau by convention
+    assert abs(offset + tau) < 0.001 * (1.0 / f)  # < 0.1% of a wingbeat
     assert abs(drift) < 1e-3
 
 

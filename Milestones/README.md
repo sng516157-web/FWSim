@@ -20,6 +20,6 @@ One self-contained prompt per project stage. Hand Kimi Code the file for the cur
 
 ## Open items that affect execution (action plan §6)
 
-- Leng, Ng & Tang (IMAV 2024) parameter table and suspended-test time series — needed for real M2/M4 numerical reproduction; otherwise those validations ship as `PENDING`.
+- ~~Leng, Ng & Tang (IMAV 2024) parameter table and suspended-test time series~~ — **closed 2026-11-04: co-author confirms no such dataset exists.** The tests stay skipped with that reason; AirPulse (arXiv:2602.06811) is the literature-grade reference vehicle instead.
 - Conda availability for the optional dev-only Pinocchio cross-check in M3.0 (WSL2 is an acceptable substitute).
 - Repository hosting and license.

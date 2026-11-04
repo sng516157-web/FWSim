@@ -50,45 +50,47 @@ def estimate_offset(
     grid = np.arange(t0, t1, dt)
     s = np.interp(grid, t_sim, x_sim)
     e = np.interp(grid, t_exp, x_exp)
-    s = s - s.mean()
-    e = e - e.mean()
 
-    corr = np.fft.ifft(np.fft.fft(s) * np.conj(np.fft.fft(e))).real
-    corr = np.concatenate([corr[len(corr) // 2:], corr[: len(corr) // 2]])
-    lags = np.arange(-len(grid) // 2, len(grid) // 2) * dt
-    i = int(np.argmax(corr))
-    # parabolic sub-sample refinement
-    if 0 < i < len(corr) - 1:
-        y0, y1, y2 = corr[i - 1], corr[i], corr[i + 1]
-        denom = y0 - 2 * y1 + y2
-        shift = 0.5 * (y0 - y2) / denom if abs(denom) > 1e-300 else 0.0
-    else:
-        shift = 0.0
-    raw_offset = lags[i] + shift * dt
-    # Periodic signals are ambiguous modulo the wingbeat period; the physically
-    # meaningful quantity is the phase offset. We report the offset wrapped to
-    # (-T/2, T/2] and flag the integer-cycle ambiguity in the report.
-    period = 1.0 / reference_frequency
-    offset = float(((raw_offset + period / 2) % period) - period / 2)
+    # Robust phase estimate: cross-spectrum phase at the dominant harmonic
+    # (time-domain cross-correlation of harmonic-rich wingbeat signals picks
+    # spurious peaks). Sign convention: e(t) = s(t + tau)  =>  tau as below.
+    # Phase offset via least-squares projection onto a sin/cos template at the
+    # reference frequency PLUS its first overtone (wingbeat force signals are
+    # harmonic-rich; including 2*f0 removes leakage bias in non-integer
+    # windows). This is the optimal phase estimator when the frequency is
+    # known (from the sim record's metadata).
+    def fundamental_phase_difference(a, b):
+        n = len(a)
+        tt = np.arange(n) * dt
+        w = 2.0 * np.pi * reference_frequency
+        A = np.column_stack([np.sin(w * tt), np.cos(w * tt),
+                             np.sin(2 * w * tt), np.cos(2 * w * tt),
+                             np.ones(n)])
 
-    # drift: offset of the second half minus offset of the first half
+        def phase(v):
+            coef, *_ = np.linalg.lstsq(A, v, rcond=None)
+            return np.arctan2(coef[1], coef[0])  # phase of the fundamental
+
+        return float(phase(b) - phase(a))
+
+    def offset_of(a, b):
+        dphi = fundamental_phase_difference(a, b)
+        tau = dphi / (2 * np.pi * reference_frequency)
+        # wrap to (-T/2, T/2]
+        period = 1.0 / reference_frequency
+        return float(((tau + period / 2) % period) - period / 2)
+
+    offset = offset_of(s, e)
     half = len(grid) // 2
     drift = 0.0
     if half > 100:
-        o1 = _offset_of(grid[:half], s[:half], e[:half], dt)
-        o2 = _offset_of(grid[half:], s[half:], e[half:], dt)
+        o1 = offset_of(s[:half], e[:half])
+        o2 = offset_of(s[half:], e[half:])
         span = grid[half:][0] - grid[:half][0]
         drift = float((o2 - o1) / span) if span > 0 else 0.0
     return offset, drift
 
 
-def _offset_of(t, s, e, dt):
-    s = s - s.mean()
-    e = e - e.mean()
-    corr = np.fft.ifft(np.fft.fft(s) * np.conj(np.fft.fft(e))).real
-    corr = np.concatenate([corr[len(corr) // 2:], corr[: len(corr) // 2]])
-    lags = np.arange(-len(t) // 2, len(t) // 2) * dt
-    return float(lags[int(np.argmax(corr))])
 
 
 def phase_grid(t: np.ndarray, period: float, n_bins: int = 100) -> np.ndarray:
@@ -97,17 +99,26 @@ def phase_grid(t: np.ndarray, period: float, n_bins: int = 100) -> np.ndarray:
 
 
 def resample_to_phase(
-    t: np.ndarray, x: np.ndarray, period: float, n_bins: int = 100
+    t: np.ndarray, x: np.ndarray, period: float, n_bins: int = 100,
+    t_ref: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Phase-binned mean of x (normalized phase grid, bin centres b/N)."""
-    phase = phase_grid(t, period)
+    """Phase-binned mean of x (normalized phase grid, bin centres b/N).
+
+    Phase is anchored at t_ref (default: the series' own first sample).
+    Comparisons between series must pass a SHARED t_ref (e.g. the sim clock
+    zero), otherwise each series anchors its phase at its own start and the
+    profiles are rotated by the series-start difference.
+
+    Empty bins (undersampled phase) are NaN — callers must mask NaNs, never
+    treat them as zero.
+    """
+    anchor = t[0] if t_ref is None else t_ref
+    phase = ((np.asarray(t, float) - anchor) / period) % 1.0
     idx = np.floor((phase + 0.5 / n_bins) * n_bins).astype(int) % n_bins
-    out = np.zeros(n_bins)
-    cnt = np.zeros(n_bins)
+    out = np.full(n_bins, np.nan)
     for b in range(n_bins):
         sel = x[idx == b]
         if len(sel):
             out[b] = sel.mean()
-            cnt[b] = len(sel)
     centres = np.arange(n_bins) / n_bins
     return centres, out

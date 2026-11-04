@@ -43,5 +43,5 @@ pytest --collect-only -q
 | M1 | Fixed-body aerodynamic vertical slice | accepted (report: `docs/milestone_reports/M1.md`) |
 | M2 | Two-wing vehicle + analytical abdomen model | accepted (report: `docs/milestone_reports/M2.md`) |
 | M3 | Nonlinear articulated free-body simulation | accepted (report: `docs/milestone_reports/M3.md`) |
-| M4 | Validation and experiment comparison | not started |
+| M4 | Validation and experiment comparison | accepted (report: `docs/milestone_reports/M4.md`) |
 | M5 | Integrated workbench | not started |
