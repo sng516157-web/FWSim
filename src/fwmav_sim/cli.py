@@ -58,6 +58,8 @@ def main() -> int:
     p_view.add_argument("--force-scale", type=float, default=5.0,
                         help="force arrow display scale, metres per newton")
 
+    sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -140,6 +142,11 @@ def main() -> int:
         else:
             serve_live(args.source, playback_speed=args.speed, force_scale=args.force_scale)
         return 0
+
+    if args.command == "gui":
+        from fwmav_sim.ui.app import main as gui_main
+
+        return gui_main()
 
     return 1
 

@@ -35,6 +35,27 @@ pytest tests/unit -q
 pytest --collect-only -q
 ```
 
+## Quickstart (reference workflow, brief §9)
+
+```bash
+# headless
+fwmav-sim run experiments/m1_fixed_body_hover.yaml     # fixed-body wing forces
+fwmav-sim report outputs/<run_dir>                      # regenerate figures
+fwmav-sim run experiments/m2_actuated_pendulum.yaml    # suspended abdomen test
+fwmav-sim compare outputs/<run_dir> datasets/synthetic/hover_case \
+    --sim-channel phi_p                                # dataset comparison (M4)
+fwmav-sim run experiments/m3_free_body_hover.yaml      # free-body 6-DoF
+fwmav-sim rerun outputs/<run_dir>                      # headless repeatability
+fwmav-sim view outputs/<run_dir>                       # live 3D (MeshCat)
+
+# workbench (requires the gui extra: pip install -e .[gui])
+fwmav-sim gui
+```
+
+In the GUI: file → open experiment… → inspector/parameter tabs on the left,
+run/validity on the right, 3D and time-series in the centre. Everything shown
+comes from run records — no stored demo data.
+
 ## Status
 
 | Milestone | Scope | Status |
@@ -44,4 +65,4 @@ pytest --collect-only -q
 | M2 | Two-wing vehicle + analytical abdomen model | accepted (report: `docs/milestone_reports/M2.md`) |
 | M3 | Nonlinear articulated free-body simulation | accepted (report: `docs/milestone_reports/M3.md`) |
 | M4 | Validation and experiment comparison | accepted (report: `docs/milestone_reports/M4.md`) |
-| M5 | Integrated workbench | not started |
+| M5 | Integrated workbench | accepted (report: `docs/milestone_reports/M5.md`) |

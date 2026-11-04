@@ -35,6 +35,8 @@ All choices are **Windows-native, pip-installable, no conda required, no Linux-o
 | Experimental data import | pandas | ≥ 2.2 | CSV time-series, resampling | Hand-rolled CSV parsing |
 | Lint / format | Ruff | ≥ 0.4 | One tool, fast | flake8+black combo |
 | Version control | git; experiment records embed `git rev-parse HEAD` | — | Brief §3.5 traceability | — |
+| UI shell (M5, DR-002) | PySide6 | ≥ 6.6 | Single process shares objects with the sim core; Windows-native; MeshCat in QWebEngineView | FastAPI+web (DR-002) |
+| UI time-series (M5, DR-002) | pyqtgraph | ≥ 0.13 | Fast native Qt plotting for time-series | matplotlib widgets (too slow for live) |
 
 ### 1.2 Decision record DR-001: multibody backend
 

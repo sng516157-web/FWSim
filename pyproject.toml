@@ -25,6 +25,11 @@ dev = [
     "ruff>=0.4",
     "sympy>=1.12",
 ]
+# M5 (DR-002): desktop workbench shell — installed here, import-guarded in ui/
+gui = [
+    "PySide6>=6.6",
+    "pyqtgraph>=0.13",
+]
 
 [project.scripts]
 fwmav-sim = "fwmav_sim.cli:main"
