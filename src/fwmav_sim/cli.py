@@ -60,6 +60,15 @@ def main() -> int:
     p_view.add_argument("--force-scale", type=float, default=5.0,
                         help="force arrow display scale, metres per newton")
 
+    p_live = sub.add_parser("live", help="live dynamics: integrate the free-body "
+                                         "plant and stream to MeshCat (not a replay)")
+    p_live.add_argument("experiment", type=Path)
+    p_live.add_argument("--speed", type=float, default=0.1,
+                        help="sim seconds per wall second (0.1 = 10x slowdown)")
+    p_live.add_argument("--force-scale", type=float, default=5.0)
+    p_live.add_argument("--no-record", action="store_true",
+                        help="don't record the session (records save by default)")
+
     p_sens = sub.add_parser("sensitivity",
                             help="one-at-a-time parameter sensitivity (post-M5 item 2)")
     p_sens.add_argument("experiment", type=Path)
@@ -185,6 +194,13 @@ def main() -> int:
             replay_record(args.source, playback_speed=args.speed, force_scale=args.force_scale)
         else:
             serve_live(args.source, playback_speed=args.speed, force_scale=args.force_scale)
+        return 0
+
+    if args.command == "live":
+        from fwmav_sim.viz.live import serve_live_dynamics
+
+        serve_live_dynamics(args.experiment, speed=args.speed,
+                            force_scale=args.force_scale, record=not args.no_record)
         return 0
 
     if args.command == "gui":

@@ -6,6 +6,12 @@ are numbered P1+; M6 is the usability/fidelity milestone.
 
 ## M6.75 — Unified Base Constraint & Platform Hardening (2026-11-06)
 
+- **Live dynamics streaming** (`fwmav-sim live <experiment>`, GUI "live"
+  button): the free-body plant integrates continuously and streams to
+  MeshCat in slow motion — not a record replay. One physics path
+  (`build_free_body_plant` shared with `run`). **Sessions record by default:**
+  every solver step is captured via `SessionRecorder`; stopping saves a full
+  run record (identical schema to batch runs), which the GUI then opens.
 - **DR-007: base constraint as experiment data.** `base: {mode:
   fixed|free|pivot, release_time}` on every experiment; kinds become
   backward-compatible aliases (overrides recorded in the record). Launch
@@ -79,3 +85,11 @@ are numbered P1+; M6 is the usability/fidelity milestone.
   mapping), transform chain frozen (frames.md), convergence + regression.
 - **M0:** modelling specification frozen (conventions, assumptions,
   decisions process).
+
+## Perf pass — vectorized blade-element aero (2026-11-06)
+
+- Blade-element kinematics + force evaluation vectorized over elements
+  (batched arrays; the scalar path is kept and regression-pinned at 1e-12).
+- Measured via `fwmav-sim benchmark`: m1_fixed_body_hover 12.54 s -> 1.00 s
+  wall (12.5x; 0.33x realtime) on the dev machine.
+- Unsteady terms stay on the scalar path (rare, off by default).

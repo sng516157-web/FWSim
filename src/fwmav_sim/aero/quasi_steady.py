@@ -158,3 +158,61 @@ class QuasiSteadyBladeElement(AerodynamicModel):
 
         return ElementForces(F_trans=F_trans, F_rot=F_rot, F_am=F_am,
                              F_unsteady=F_unsteady)
+
+    # --- batched evaluation (M6.75 perf pass) ---------------------------------
+
+    def cl_cd_batch(self, alpha_rad: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Vectorized cl_cd over an array of incidences (same math)."""
+        c = self._c
+        a_deg = np.degrees((alpha_rad + np.pi) % (2 * np.pi) - np.pi)
+        sign = np.where(a_deg >= 0, 1.0, -1.0)
+        a = np.abs(a_deg)
+        a = np.where(a > 90.0, 180.0 - a, a)
+        if self._form == "poststall_classical":
+            ar = np.radians(a)
+            return (sign * c["cn"] * np.sin(ar) ** 2 * np.cos(ar),
+                    c["cn"] * np.sin(ar) ** 3)
+        cl = c["cl_0"] + c["cl_slope"] * np.sin(np.radians(c["cl_freq"] * a - c["cl_phase_deg"]))
+        cd = c["cd_0"] - c["cd_slope"] * np.cos(np.radians(c["cd_freq"] * a - c["cd_phase_deg"]))
+        return sign * cl, cd
+
+    def element_forces_batch(self, st: dict[str, np.ndarray], env: Environment
+                             ) -> dict[str, np.ndarray]:
+        """Vectorized element_forces over one wing's elements (arrays in the
+        batched ElementState dict from kinematics.blade_element). Identical
+        math to the scalar path (regression-pinned to 1e-12). Returns arrays
+        (n,3): F_trans, F_rot, F_am."""
+        n_phys = st["n_phys"]
+        v_rel = st["v_rel"]
+        speed = st["speed"]
+        n = len(speed)
+
+        # added mass (acceleration-driven; evaluated always)
+        m_app = env.rho * np.pi * st["chord"]**2 / 4.0 * (st["area"] / st["chord"])
+        a_n = st["a_W"] @ n_phys
+        F_am = -(m_app * a_n)[:, None] * n_phys[None, :]
+
+        # zero-speed guard per element (documented exception: F_am still applies)
+        alive = speed >= 1e-14
+        v_hat = np.zeros_like(v_rel)
+        v_hat[alive] = v_rel[alive] / speed[alive, None]
+
+        cl, cd = self.cl_cd_batch(st["alpha"])
+        dr = st["area"] / st["chord"]
+        q = 0.5 * env.rho * speed**2 * st["chord"] * dr
+
+        n_perp = n_phys[None, :] - (v_hat @ n_phys)[:, None] * v_hat
+        n_perp_norm = np.linalg.norm(n_perp, axis=1)
+        e_L = np.zeros_like(v_rel)
+        ok = n_perp_norm >= 1e-12
+        e_L[ok] = -n_perp[ok] / n_perp_norm[ok, None]
+
+        F_trans = (q * cl)[:, None] * e_L - (q * cd)[:, None] * v_hat
+        gamma_rot = (np.pi * st["chord"]**2 * st["pitch_rate"]
+                     * (0.75 - st["pitch_axis_fraction"]))
+        F_rot = (env.rho * speed * gamma_rot * dr)[:, None] * e_L
+
+        # guards: dead elements keep only F_am (scalar path behaviour)
+        F_trans[~alive] = 0.0
+        F_rot[~alive] = 0.0
+        return {"F_trans": F_trans, "F_rot": F_rot, "F_am": F_am}

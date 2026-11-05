@@ -181,16 +181,28 @@ class FreeBodyPlant:
                 F_sum["F_unsteady"] = np.zeros(3)
             r_app = np.zeros(3)  # force-weighted application point (documented)
             w_tot = 0.0
-            for el in self._elements[wing.name]:
-                st = element_state_ctx(wing, el, ctx, nu=self.env.nu)
-                ef = self.aero.element_forces(st, self.env)
-                for key in F_sum:
-                    F_sum[key] += getattr(ef, key) if getattr(ef, key) is not None else 0.0
-                F_el = ef.resultant
-                w_tot += np.linalg.norm(F_el)
-                r_app += np.linalg.norm(F_el) * st.r_W
-                f_B = R_wb.T @ F_el
-                r_el_B = R_wb.T @ (st.r_W - p)
+            # batched blade-element core (M6.75 perf pass)
+            from fwmav_sim.kinematics.blade_element import batched_element_state_ctx
+
+            els = self._elements[wing.name]
+            st_b = batched_element_state_ctx(wing, els, ctx, nu=self.env.nu)
+            bf = self.aero.element_forces_batch(st_b, self.env)
+            F_el_all = bf["F_trans"] + bf["F_rot"] + bf["F_am"]
+            if unsteady:
+                for j, el in enumerate(els):
+                    st = element_state_ctx(wing, el, ctx, nu=self.env.nu)
+                    ef = self.aero.element_forces(st, self.env)
+                    if ef.F_unsteady is not None:
+                        F_sum["F_unsteady"] += ef.F_unsteady
+                        F_el_all[j] += ef.F_unsteady
+            for key in ("F_trans", "F_rot", "F_am"):
+                F_sum[key] = bf[key].sum(axis=0)
+            w_el = np.linalg.norm(F_el_all, axis=1)
+            w_tot = float(w_el.sum())
+            r_app = (w_el[:, None] * st_b["r_W"]).sum(axis=0)
+            for j in range(len(els)):
+                f_B = R_wb.T @ F_el_all[j]
+                r_el_B = R_wb.T @ (st_b["r_W"][j] - p)
                 f_thorax += np.concatenate([cross3(r_el_B, f_B), f_B])
             r_app = r_app / w_tot if w_tot > 1e-15 else np.zeros(3)
             rec[wing.name] = {**F_sum, "r_app_W": r_app}

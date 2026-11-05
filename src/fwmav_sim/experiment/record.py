@@ -78,3 +78,42 @@ def load_record(record_dir: str | Path) -> tuple[TimeSeries, dict]:
     metadata = json.loads(record_dir.joinpath("metadata.json").read_text(encoding="utf-8"))
     ts = TimeSeries(t=t, channels=channels, meta=metadata.get("time_series_meta", {}))
     return ts, metadata
+
+
+class SessionRecorder:
+    """Incremental session recorder (live sessions, M6.75+).
+
+    A live session IS the simulation; its record is a full run record written
+    on stop — identical schema to `fwmav-sim run` output. Samples accumulate
+    in memory (per recorded sample: state + diagnostics); save() delegates to
+    save_record.
+    """
+
+    def __init__(self, name: str, experiment_yaml: Path, vehicle_yaml: Path | None,
+                 ts_meta: dict, extra_meta: dict | None = None):
+        self._name = name
+        self._exp = Path(experiment_yaml)
+        self._veh = Path(vehicle_yaml) if vehicle_yaml else None
+        self._ts_meta = ts_meta
+        self._extra = extra_meta or {}
+        self._t: list[float] = []
+        self._channels: dict[str, list[np.ndarray]] = {}
+        self._n = 0
+
+    def add_sample(self, t: float, channels: dict[str, np.ndarray]) -> None:
+        self._t.append(float(t))
+        self._n += 1
+        for k, v in channels.items():
+            self._channels.setdefault(k, []).append(np.asarray(v, dtype=float))
+
+    @property
+    def n_samples(self) -> int:
+        return self._n
+
+    def save(self, out_root: str | Path = "outputs") -> Path | None:
+        if not self._t:
+            return None
+        ts = TimeSeries(t=np.asarray(self._t),
+                        channels={k: np.stack(v) for k, v in self._channels.items()},
+                        meta=self._ts_meta)
+        return save_record(out_root, self._name, ts, self._exp, self._veh, self._extra)

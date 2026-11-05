@@ -22,6 +22,8 @@ try:
 except ImportError:
     _HAVE_QT = False
 
+import time
+
 import yaml
 
 from fwmav_sim.experiment.config import load_experiment, load_vehicle
@@ -38,6 +40,9 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         self._experiment_path: Path | None = None
         self._vehicle = None
         self._record_dir: Path | None = None
+        self._experiment = None
+        self._live_stop = None  # threading.Event while a live stream runs
+        self._live_session = None  # LiveSession while a live stream runs
 
         from fwmav_sim.ui.console import ConsolePanel
         from fwmav_sim.ui.inspector import InspectorPanel
@@ -76,7 +81,8 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
 
         # right dock: run control + validity
         self.run_panel = RunPanel(experiments_dir or Path("experiments"), self._on_record,
-                                  on_failure=self._on_run_failure)
+                                  on_failure=self._on_run_failure,
+                                  on_live=self._on_live_toggle)
         self.validity = ValidityPanel()
         right = QVBoxLayout()
         right.addWidget(self.run_panel)
@@ -165,6 +171,52 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
 
     def _on_run_failure(self, message: str):
         self.console.report_failure("run failed", message)
+
+    def _on_live_toggle(self, on: bool, experiment: Path) -> None:
+        """Live dynamics streaming into the 3D panel (worker thread; M6.75+)."""
+        import threading
+
+        if not on:
+            if self._live_stop is not None:
+                self._live_stop.set()
+                self._live_stop = None
+            rec = self._live_session.save_record() if self._live_session else None
+            if rec is not None:
+                self.console.log("info", f"session record: {rec}")
+                self._on_record(Path(rec))
+            else:
+                self.console.log("info", "live stream stopped (nothing recorded)")
+            return
+        try:
+            from fwmav_sim.viz.live import LiveSession
+
+            self.scene3d.stop()
+            if self.scene3d._vis is None:
+                self.scene3d.start_server()
+            session = LiveSession(experiment, self.scene3d._vis)
+        except (ValueError, ImportError) as exc:
+            self.console.report_failure("live stream failed to start", str(exc))
+            self.run_panel._live_on = False
+            self.run_panel.live_button.setText("live (stream dynamics)")
+            return
+        self._live_session = session
+        self._live_stop = threading.Event()
+        stop = self._live_stop
+        frame_wall = 1.0 / 30.0
+
+        def loop():
+            while not stop.is_set():
+                t0 = time.perf_counter()
+                try:
+                    session.step_frame(frame_wall * 0.1)  # 10x slow motion
+                except Exception as exc:  # noqa: BLE001 - surface and stop
+                    self.console.log("error", f"live stream stopped: {exc}")
+                    break
+                dt = time.perf_counter() - t0
+                time.sleep(max(frame_wall - dt, 0.0))
+
+        threading.Thread(target=loop, daemon=True).start()
+        self.console.log("info", f"live dynamics streaming: {experiment.name} (10x slow)")
 
     def _on_inspector_select(self, key):
         """Inspector selection drives the parameter editor."""

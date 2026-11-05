@@ -35,8 +35,14 @@ def _record(root, name, kind="fixed_body", status="OK", mtime_shift=0):
 def test_scan_records_newest_first_and_status(tmp_path):
     from fwmav_sim.ui.records import scan_records
 
-    _record(tmp_path, "a_old")
-    _record(tmp_path, "b_new", kind="free_body", status="FAILED")
+    d_old = _record(tmp_path, "a_old")
+    d_new = _record(tmp_path, "b_new", kind="free_body", status="FAILED")
+    import os
+    import time
+
+    now = time.time()
+    for d, mtime in ((d_old, now - 100), (d_new, now)):
+        os.utime(d / "metadata.json", (mtime, mtime))  # deterministic ordering
     recs = scan_records(tmp_path)
     assert [r["name"] for r in recs] == ["b_new", "a_old"]
     assert recs[0]["status"] == "FAILED" and recs[0]["kind"] == "free_body"

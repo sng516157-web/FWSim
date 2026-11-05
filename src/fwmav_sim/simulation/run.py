@@ -168,14 +168,13 @@ def _run_free_reduced(exp, experiment_path):
     return ts, vehicle_path, extra_meta
 
 
-def _run_free_body(exp, experiment_path):
+def build_free_body_plant(exp, experiment_path):
+    """Construct (plant, y0) exactly as _run_free_body does — the single
+    physics path for free-body runs, records, and live streaming (no second
+    implementation)."""
     from fwmav_sim.core.transforms import quat_from_euler
-    from fwmav_sim.simulation.free_body import (
-        FreeBodyPlant,
-        IsolationSpec,
-    )
+    from fwmav_sim.simulation.free_body import FreeBodyPlant, IsolationSpec
     from fwmav_sim.simulation.integrator import pack_state
-    from fwmav_sim.simulation.runner import run_free_body
 
     if not (exp.vehicle and exp.kinematics and exp.environment and exp.solver):
         raise ValueError("free_body requires vehicle, kinematics, environment, solver")
@@ -188,7 +187,7 @@ def _run_free_body(exp, experiment_path):
     control = _abdomen_control(exp, vehicle)
     from fwmav_sim.experiment.config import effective_base, kinematics_map
 
-    mode, base_warnings = effective_base(exp)
+    _mode, _w = effective_base(exp)
     base_mode, release_time = "free", None
     if exp.base is not None:
         base_mode = exp.base.mode if exp.base.mode != "pivot" else "free"
@@ -215,7 +214,13 @@ def _run_free_body(exp, experiment_path):
                    joint_rates),
         y0_extra,
     ])
+    return plant, y0, vehicle_path
 
+
+def _run_free_body(exp, experiment_path):
+    from fwmav_sim.simulation.runner import run_free_body
+
+    plant, y0, vehicle_path = build_free_body_plant(exp, experiment_path)
     ts, status, extra = run_free_body(plant, exp.solver, y0)
     wing_masses = ts.meta.get("wing_mass_kg", {})
     wing_note = (

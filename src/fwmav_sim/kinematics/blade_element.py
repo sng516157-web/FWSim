@@ -266,6 +266,49 @@ class WingFrameContext:
         self.v_air_W = np.zeros(3) if v_air_W is None else np.asarray(v_air_W, dtype=float)
 
 
+def batched_element_state_ctx(wing: WingSpec, elements: list[BladeElement],
+                              ctx: WingFrameContext, nu: float) -> dict[str, np.ndarray]:
+    """Vectorized element states for one wing (M6.75 perf pass): identical
+    math to element_state_ctx applied to all elements at once (arrays over
+    elements). Keys: r_W, v_W, a_W (n,3); alpha, reynolds (n,); plus wing-level
+    scalars/vectors shared by the force evaluation."""
+    n = len(elements)
+    r_BE = np.array([[el.x_c, el.s, 0.0] for el in elements])  # (n,3)
+    chord = np.array([el.chord for el in elements])
+    area = np.array([el.area for el in elements])
+
+    r_rel_B = (ctx.R_wb @ np.asarray(wing.hinge_location.value, float))[None, :] \
+        + (ctx.R_world_SP @ ctx.R_WR @ r_BE.T).T
+    r_W = ctx.p_B_W + r_rel_B
+    R_W_BE = ctx.R_world_SP @ ctx.R_WR
+    v_flap = (ctx.R_world_SP @ ctx.dR_WR @ r_BE.T).T
+    v_W = ctx.v_B_W[None, :] + np.cross(ctx.omega_W, r_rel_B) + v_flap
+    a_W = (np.cross(ctx.omega_W, np.cross(ctx.omega_W, r_rel_B))
+           + 2.0 * np.cross(ctx.omega_W, v_flap)
+           + (ctx.R_world_SP @ ctx.ddR_WR @ r_BE.T).T)
+    v_rel = v_W - ctx.v_air_W
+    chord_dir = R_W_BE @ np.array([1.0, 0.0, 0.0])
+    n_phys = R_W_BE @ np.array([0.0, 0.0, 1.0 if wing.side == "right" else -1.0])
+    alpha = np.arctan2(v_rel @ n_phys, v_rel @ chord_dir)
+    speed = np.linalg.norm(v_rel, axis=1)
+    return {
+        "r_W": r_W, "v_W": v_W, "a_W": a_W, "alpha": alpha,
+        "reynolds": speed * chord / nu, "chord": chord, "area": area,
+        "chord_dir": chord_dir, "n_phys": n_phys, "v_rel": v_rel,
+        "speed": speed, "pitch_rate": ctx.ks.theta_w_dot,
+        "pitch_axis_fraction": wing.pitch_axis_fraction.value,
+    }
+
+
+def batched_element_state(wing: WingSpec, elements: list[BladeElement],
+                          kin: PrescribedWingKinematics, t: float, nu: float,
+                          v_air_W: np.ndarray | None = None) -> dict[str, np.ndarray]:
+    """Fixed-body batch (body at identity pose, at rest)."""
+    ctx = WingFrameContext(wing, kin, t, np.eye(3), np.zeros(3), np.zeros(3),
+                           np.zeros(3), v_air_W)
+    return batched_element_state_ctx(wing, elements, ctx, nu)
+
+
 def element_state_ctx(wing: WingSpec, element: BladeElement, ctx: WingFrameContext,
                       nu: float) -> ElementState:
     """Element state from a shared per-wing context (see element_state_free_body)."""

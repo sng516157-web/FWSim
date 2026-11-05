@@ -47,12 +47,15 @@ class RunWorker(QThread if _HAVE_QT else object):
 class RunPanel(QWidget if _HAVE_QT else object):
     """Experiment picker + run button + status."""
 
-    def __init__(self, experiments_dir: Path, on_record_ready, on_failure=None, parent=None):
+    def __init__(self, experiments_dir: Path, on_record_ready, on_failure=None,
+                 on_live=None, parent=None):
         if not _HAVE_QT:
             raise ImportError("PySide6 required for the run panel")
         super().__init__(parent)
         self._on_record_ready = on_record_ready
         self._on_failure = on_failure  # optional: console/modal surfacing (M6)
+        self._on_live = on_live  # optional: live dynamics toggle (M6.75+)
+        self._live_on = False
         self._worker: RunWorker | None = None
 
         layout = QVBoxLayout(self)
@@ -70,7 +73,16 @@ class RunPanel(QWidget if _HAVE_QT else object):
             "`fwmav-sim run`). On completion the record opens in the time-series,\n"
             "3D and validity views automatically.")
         self.run_button.clicked.connect(self._run)
-        layout.addWidget(self.run_button)
+        row = QVBoxLayout()
+        row.addWidget(self.run_button)
+        self.live_button = QPushButton("live (stream dynamics)")
+        self.live_button.setToolTip(
+            "Integrate the free-body plant continuously and stream to the 3D\n"
+            "view in slow motion — not a record replay. free_body experiments\n"
+            "only; stops on second press.")
+        self.live_button.clicked.connect(self._toggle_live)
+        row.addWidget(self.live_button)
+        layout.addLayout(row)
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)  # indeterminate while running
         self.progress.hide()
@@ -109,3 +121,9 @@ class RunPanel(QWidget if _HAVE_QT else object):
         self.status.setText(f"FAILED: {message}")
         if self._on_failure is not None:
             self._on_failure(message)
+
+    def _toggle_live(self):
+        self._live_on = not self._live_on
+        self.live_button.setText("stop live" if self._live_on else "live (stream dynamics)")
+        if self._on_live is not None:
+            self._on_live(self._live_on, self.current_experiment())

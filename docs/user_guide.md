@@ -43,6 +43,7 @@ Other useful commands:
 
 ```bash
 fwmav-sim run experiments/m3_free_body_hover.yaml   # the MAV actually flies
+fwmav-sim live experiments/m3_free_body_hover.yaml  # live dynamics streaming (not a replay)
 fwmav-sim sensitivity experiments/m1_fixed_body_hover.yaml   # what matters most
 fwmav-sim import-urdf robot.urdf -o my_vehicle.yaml          # CAD -> vehicle skeleton
 fwmav-sim fit-sysid <fixed_body_exp> <dataset_dir> --columns FX FY FZ -o fit.yaml

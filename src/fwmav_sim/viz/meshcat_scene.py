@@ -246,27 +246,20 @@ def replay_record(record_dir: Path, playback_speed: float = 0.05, force_scale: f
                       vehicle_path=record_dir / "vehicle.yaml")
 
 
-def build_free_body_replay(vis, record_dir: Path, force_scale: float = 5.0):
-    """Replay context for a free_body record on an existing MeshCat server.
-    Returns (ctx, n_frames); frame i renders with render_free_body_frame."""
+def build_free_body_scene(vis, ts, vehicle, exp, force_scale: float = 5.0):
+    """Build the free-body scene from IN-MEMORY objects (record ts + vehicle +
+    experiment). Frame i renders with render_free_body_frame(vis, ctx, i);
+    live mode swaps ctx.ts per frame."""
     import meshcat.geometry as g
 
-    from fwmav_sim.experiment.record import load_record
-
-    record_dir = Path(record_dir)
-    ts, meta = load_record(record_dir)
-    vehicle = load_vehicle(record_dir / "vehicle.yaml")
-    exp = load_experiment(record_dir / "config.yaml")
-    env = environment_from_spec(exp.environment)
-    model = QuasiSteadyBladeElement(vehicle.aero)
     from fwmav_sim.experiment.config import kinematics_map
 
+    env = environment_from_spec(exp.environment)
+    model = QuasiSteadyBladeElement(vehicle.aero)
     kin_map = kinematics_map(exp, vehicle)
     state = build_scene(vis, vehicle.wings, next(iter(kin_map.values())),
                         n_elements=vehicle.blade_elements.n_elements,
                         force_scale=force_scale)
-    # body proxy: thorax box + abdomen rod (display only; geometry from the
-    # vehicle definition where available)
     vis["body/thorax"].set_object(g.Box([0.04, 0.03, 0.02]),
                                   g.MeshLambertMaterial(color=0x888899))
     vis["body/abdomen"].set_object(g.Cylinder(0.03, 0.004),
@@ -278,7 +271,19 @@ def build_free_body_replay(vis, record_dir: Path, force_scale: float = 5.0):
     ctx = _FreeBodyReplayCtx(ts=ts, vehicle=vehicle, env=env, model=model,
                              kin_map=kin_map, art=ArticulatedModel(vehicle),
                              state=state, force_scale=force_scale)
-    return ctx, len(ts.t)
+    return ctx
+
+
+def build_free_body_replay(vis, record_dir: Path, force_scale: float = 5.0):
+    """Replay context for a free_body record on an existing MeshCat server.
+    Returns (ctx, n_frames); frame i renders with render_free_body_frame."""
+    from fwmav_sim.experiment.record import load_record
+
+    record_dir = Path(record_dir)
+    ts, meta = load_record(record_dir)
+    vehicle = load_vehicle(record_dir / "vehicle.yaml")
+    exp = load_experiment(record_dir / "config.yaml")
+    return build_free_body_scene(vis, ts, vehicle, exp, force_scale), len(ts.t)
 
 
 def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,

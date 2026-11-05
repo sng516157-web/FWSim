@@ -83,6 +83,10 @@ def run_fixed_body(
         for name, w in wings.items():
             mirror_of[name] = next((n2 for n2, w2 in wings.items() if w2.side != w.side), None)
 
+    from fwmav_sim.kinematics.blade_element import (
+        batched_element_state,
+    )
+
     for i, ti in enumerate(t):
         tips = {}
         if "clap_fling" in unsteady:
@@ -90,40 +94,43 @@ def run_fixed_body(
 
             tips = {name: _wing_tip_W(w, kinematics[name], ti) for name, w in wings.items()}
         for name, w in wings.items():
-            F_sum = np.zeros(3)
-            M_sum = np.zeros(3)
-            P = 0.0
-            F_el = np.zeros((len(elements[name]), 3))
-            alphas = np.zeros(len(elements[name]))
-            res = np.zeros(len(elements[name]))
-            for j, el in enumerate(elements[name]):
-                st = element_state(w, el, kinematics[w.name], ti, nu=env.nu, v_air_W=env.v_air_W)
-                if unsteady_on:
-                    st.aux = {"wing": w, "kin": kinematics[w.name],
-                              "mirror_tip_W": tips.get(mirror_of.get(name)),
-                              "own_tip_W": tips.get(name)}
-                ef = model.element_forces(st, env)
-                F_sum += ef.resultant
-                M_sum += np.cross(st.r_W, ef.resultant)
-                P += -float(ef.resultant @ st.v_W)
-                F_el[j] = ef.resultant
-                alphas[j] = st.alpha
-                res[j] = st.reynolds
-                for key, vec in (("F_trans", ef.F_trans), ("F_rot", ef.F_rot), ("F_am", ef.F_am)):
-                    channels[f"{name}/{key}"][i] += vec
-                if unsteady_on and ef.F_unsteady is not None:
-                    channels[f"{name}/F_unsteady"][i] += ef.F_unsteady
+            # batched blade-element evaluation (M6.75 perf pass)
+            st = batched_element_state(w, elements[name], kinematics[w.name], ti,
+                                       nu=env.nu, v_air_W=env.v_air_W)
+            bf = model.element_forces_batch(st, env)
+            F_el = bf["F_trans"] + bf["F_rot"] + bf["F_am"]
+            if unsteady_on:
+                # unsteady terms stay on the scalar path (per-element aux)
+                els = elements[name]
+                F_un = np.zeros(3)
+                for j in range(len(els)):
+                    st_j = element_state(w, els[j], kinematics[w.name], ti,
+                                         nu=env.nu, v_air_W=env.v_air_W)
+                    st_j.aux = {"wing": w, "kin": kinematics[w.name],
+                                "mirror_tip_W": tips.get(mirror_of.get(name)),
+                                "own_tip_W": tips.get(name)}
+                    ef_j = model.element_forces(st_j, env)
+                    if ef_j.F_unsteady is not None:
+                        F_un += ef_j.F_unsteady
+                        F_el[j] += ef_j.F_unsteady
+                channels[f"{name}/F_unsteady"][i] = F_un
+            F_sum = F_el.sum(axis=0)
+            M_sum = np.cross(st["r_W"], F_el).sum(axis=0)
+            P = -float((F_el * st["v_W"]).sum())
+            channels[f"{name}/F_trans"][i] = bf["F_trans"].sum(axis=0)
+            channels[f"{name}/F_rot"][i] = bf["F_rot"].sum(axis=0)
+            channels[f"{name}/F_am"][i] = bf["F_am"].sum(axis=0)
             channels[f"{name}/F_total"][i] = F_sum
             channels[f"{name}/M_total"][i] = M_sum
             channels[f"{name}/P_aero"][i] = P
             channels[f"{name}/element_force"][i] = F_el
-            channels[f"{name}/alpha"][i] = alphas
-            channels[f"{name}/reynolds"][i] = res
+            channels[f"{name}/alpha"][i] = st["alpha"]
+            channels[f"{name}/reynolds"][i] = st["reynolds"]
             props = inertia_props[name]
             if props is not None:
-                st = wing_inertial_state(w, kinematics[w.name], props, ti,
-                                         np.eye(3), np.zeros(3), np.zeros(3), np.zeros(3))
-                F_i, N_i, c_W = st.wrench_on_thorax(np.zeros(3), np.zeros(3))
+                st_i = wing_inertial_state(w, kinematics[w.name], props, ti,
+                                           np.eye(3), np.zeros(3), np.zeros(3), np.zeros(3))
+                F_i, N_i, c_W = st_i.wrench_on_thorax(np.zeros(3), np.zeros(3))
                 channels[f"{name}/F_inertial"][i] = F_i
                 channels[f"{name}/M_inertial"][i] = np.cross(c_W, F_i) + N_i
                 channels[f"{name}/F_sensor"][i] = F_sum + F_i
