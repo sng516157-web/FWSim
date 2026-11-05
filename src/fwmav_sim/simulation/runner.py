@@ -69,6 +69,8 @@ def run_free_body(
     com = np.zeros((n, 3))
     wings = [w.name for w in plant.vehicle.wings]
     F_terms = {w: np.zeros((n, 3)) for w in wings}
+    F_parts = {w: {k: np.zeros((n, 3)) for k in ("F_trans", "F_rot", "F_am")}
+               for w in wings}
     lever = {w: np.zeros((n, 3)) for w in wings}
     has_wing_inertia = bool(plant.last_F_wing_inertia) or any(
         p is not None for p in plant._wing_mass.values())
@@ -92,6 +94,11 @@ def run_free_body(
                 F_terms[w][i] = (rec["F_trans"] + rec["F_rot"] + rec["F_am"]
                                  + rec.get("F_unsteady", 0.0))
                 lever[w][i] = rec["r_app_W"] - com[i]
+                for k in F_parts[w]:
+                    F_parts[w][k][i] = rec[k]
+                if "F_unsteady" in rec:
+                    F_parts[w].setdefault("F_unsteady", np.zeros((n, 3)))[i] = \
+                        rec["F_unsteady"]
             if has_wing_inertia:
                 F_inertia[w][i] = plant.last_F_wing_inertia.get(w, np.zeros(3))
     channels["alpha_commanded"] = alpha_cmd
@@ -101,6 +108,9 @@ def run_free_body(
     for w in wings:
         channels[f"{w}/F_aero_total"] = F_terms[w]
         channels[f"{w}/lever_arm"] = lever[w]
+        # per-term channels (DR-007 unified recording: same schema as the rig)
+        for k, arr in F_parts[w].items():
+            channels[f"{w}/{k}"] = arr
         if has_wing_inertia:
             channels[f"{w}/F_wing_inertial"] = F_inertia[w]
     if has_abdomen_aero:
@@ -114,6 +124,8 @@ def run_free_body(
                        "atol": solver.atol,
                        "steps_per_wingbeat": solver.steps_per_wingbeat},
             "abdomen_mode": plant.control.mode,
+            "base_mode": plant.base_mode,
+            "release_time": plant.release_time,
             "wing_mass_kg": wing_masses,
             "isolation": {"mass_shift_enabled": plant.isolation.mass_shift_enabled,
                           "inertial_coupling_enabled": plant.isolation.inertial_coupling_enabled,

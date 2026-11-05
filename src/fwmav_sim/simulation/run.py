@@ -186,9 +186,20 @@ def _run_free_body(exp, experiment_path):
 
     isolation = IsolationSpec(**(exp.isolation.model_dump() if exp.isolation else {}))
     control = _abdomen_control(exp, vehicle)
-    from fwmav_sim.experiment.config import kinematics_map
+    from fwmav_sim.experiment.config import effective_base, kinematics_map
+
+    mode, base_warnings = effective_base(exp)
+    base_mode, release_time = "free", None
+    if exp.base is not None:
+        base_mode = exp.base.mode if exp.base.mode != "pivot" else "free"
+        release_time = exp.base.release_time
+        if release_time is not None:
+            init = exp.initial_state_free
+            if init and (any(init.velocity_W) or any(init.omega_B)):
+                raise ValueError("base.release_time requires rest initial conditions")
     plant = FreeBodyPlant(vehicle, kinematics_map(exp, vehicle), env, model,
-                          control=control, isolation=isolation)
+                          control=control, isolation=isolation,
+                          base_mode=base_mode, release_time=release_time)
 
     init = exp.initial_state_free
     joint_angles = (init.joint_angles if init and init.joint_angles
@@ -344,20 +355,57 @@ def dispatch_experiment(experiment_path: str | Path):
     Returns (TimeSeries, vehicle_path, extra_meta) — the same objects
     run_experiment persists. Used by the sensitivity analysis (in-process
     reruns over patched YAMLs) and by run_experiment itself.
+
+    Routing (DR-007): the effective base constraint may route a run to a
+    different runner than the kind implies (fixed_body with base: free flies;
+    free_body with base: fixed goes to the fast rig runner).
     """
+    from fwmav_sim.experiment.config import effective_base
+
     experiment_path = Path(experiment_path)
     exp = load_experiment(experiment_path)
+    mode, base_warnings = effective_base(exp)
     if exp.kind == "fixed_body":
-        return _run_fixed_body(exp, experiment_path)
-    if exp.kind == "suspended_pendulum":
-        return _run_suspended_pendulum(exp, experiment_path)
-    if exp.kind == "free_reduced":
-        return _run_free_reduced(exp, experiment_path)
-    if exp.kind == "free_body":
-        return _run_free_body(exp, experiment_path)
-    if exp.kind == "closed_loop_reduced":
-        return _run_closed_loop(exp, experiment_path)
-    raise ValueError(f"unknown experiment kind {exp.kind!r}")
+        if mode == "free":
+            if not exp.solver:
+                raise ValueError("base: free on a fixed_body experiment "
+                                 "requires a solver block")
+            out = _run_free_body(exp, experiment_path)
+        elif mode == "pivot":
+            if not exp.solver:
+                raise ValueError("base: pivot on a fixed_body experiment "
+                                 "requires a solver block")
+            out = _run_suspended_pendulum(exp, experiment_path)
+        else:
+            out = _run_fixed_body(exp, experiment_path)
+    elif exp.kind == "suspended_pendulum":
+        if mode == "free":
+            out = _run_free_body(exp, experiment_path)
+        elif mode == "fixed":
+            out = _run_fixed_body(exp, experiment_path)
+        else:
+            out = _run_suspended_pendulum(exp, experiment_path)
+    elif exp.kind == "free_reduced":
+        out = _run_free_reduced(exp, experiment_path)
+    elif exp.kind == "free_body":
+        if mode == "fixed":
+            if not (exp.n_wingbeats and exp.steps_per_wingbeat):
+                raise ValueError("base: fixed on a free_body experiment requires "
+                                 "n_wingbeats and steps_per_wingbeat (fast rig runner)")
+            out = _run_fixed_body(exp, experiment_path)
+        elif mode == "pivot":
+            out = _run_suspended_pendulum(exp, experiment_path)
+        else:
+            out = _run_free_body(exp, experiment_path)
+    elif exp.kind == "closed_loop_reduced":
+        out = _run_closed_loop(exp, experiment_path)
+    else:
+        raise ValueError(f"unknown experiment kind {exp.kind!r}")
+    ts, vehicle_path, meta = out
+    if base_warnings:
+        meta.setdefault("validity", {}).setdefault("warnings", [])
+        meta["validity"]["warnings"] = base_warnings + meta["validity"]["warnings"]
+    return ts, vehicle_path, meta
 
 
 def run_experiment(experiment_path: str | Path, out_root: str | Path = "outputs") -> Path:

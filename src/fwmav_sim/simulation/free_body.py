@@ -83,7 +83,15 @@ class FreeBodyPlant:
         aero_model: AerodynamicModel | None,
         control: AbdomenControl | None = None,
         isolation: IsolationSpec = IsolationSpec(),
+        base_mode: str = "free",
+        release_time: float | None = None,
     ):
+        """base_mode (DR-007): "free" | "fixed" | "release" semantics via
+        release_time — while clamped, base rates and accelerations are forced
+        to zero (the rig option on the same plant). release_time requires
+        rest initial conditions (validated by the runner)."""
+        self.base_mode = base_mode
+        self.release_time = release_time
         self.model = ArticulatedModel(vehicle)
         self.vehicle = vehicle
         if isinstance(kinematics, dict):
@@ -250,6 +258,12 @@ class FreeBodyPlant:
             u_eff[6:6 + nj] = 0.0
             prescribed_eff = {j: (0.0, 0.0) for j in prescribed_eff}
 
+        # --- base constraint (DR-007): while clamped, the base does not move
+        clamped = (self.base_mode == "fixed"
+                   or (self.release_time is not None and t < self.release_time))
+        if clamped:
+            u_eff[:6] = 0.0
+
         # --- aero + dynamics
         f_ext, rec = self._aero_wrench(t, qm_eff, u_eff)
 
@@ -296,6 +310,8 @@ class FreeBodyPlant:
         ud, tau_full = self.model.forward_dynamics(
             qm_eff, u_eff, tau, f_ext=f_ext, prescribed_joints=prescribed_eff or None,
             m_extra=m_extra, rhs_extra=rhs_extra)
+        if clamped:
+            ud[:6] = 0.0
         self.last_reaction = tau_full[6:6 + nj]
         self.last_F_wings = rec
         self.last_F_wing_inertia = {

@@ -143,6 +143,22 @@ class ClosedLoopSpec(BaseModel):
     initial_perturbation: list[float] = Field(default_factory=lambda: [0.0] * 8)
 
 
+class BaseConstraintSpec(BaseModel):
+    """Base constraint as experiment data (DR-007): the rig/free/pivot
+    choice is an option on every experiment, not a kind.
+
+    mode: fixed (clamped rig), free (6-DoF flight), pivot (suspended).
+    release_time (only with mode "free"): clamp the base DoFs until this
+    time, then release — the launch transient.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["fixed", "free", "pivot"]
+    pivot_body_point: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    release_time: float | None = Field(default=None, gt=0.0)
+
+
 class ExperimentDefinition(BaseModel):
     """Top-level experiment configuration."""
 
@@ -169,7 +185,35 @@ class ExperimentDefinition(BaseModel):
     initial_state_free: InitialStateFreeSpec | None = None
     isolation: IsolationFlagsSpec | None = None
     closed_loop: ClosedLoopSpec | None = None
+    base: BaseConstraintSpec | None = None  # DR-007: constraint as data
     solver: SolverSpec | None = None
+
+
+def effective_base(exp: ExperimentDefinition) -> tuple[str, list[str]]:
+    """Resolve the effective base constraint (DR-007).
+
+    Returns (mode, warnings). Precedence: an explicit `base` block overrides
+    the kind's implied constraint (recorded as a warning); otherwise the
+    kind implies: fixed_body -> fixed, free_body/closed_loop_reduced -> free,
+    suspended_pendulum -> pivot, free_reduced -> free (reduced plant).
+    """
+    implied = {"fixed_body": "fixed", "free_body": "free",
+               "suspended_pendulum": "pivot", "free_reduced": "free",
+               "closed_loop_reduced": "free"}[exp.kind]
+    warnings: list[str] = []
+    if exp.base is None:
+        return implied, warnings
+    mode = exp.base.mode
+    if mode != implied:
+        warnings.append(
+            f"base block overrides the {exp.kind} kind's implied constraint "
+            f"({implied} -> {mode}); recorded, not silent (DR-007)")
+    if exp.base.release_time is not None and mode != "free":
+        raise ValueError("base.release_time is only meaningful with mode: free")
+    if mode == "pivot" and exp.base.pivot_body_point is None \
+            and exp.suspension is None:
+        raise ValueError("base mode pivot requires pivot_body_point or a suspension block")
+    return mode, warnings
 
 
 def kinematics_map(exp: ExperimentDefinition, vehicle: VehicleDefinition):
