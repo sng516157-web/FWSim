@@ -21,10 +21,17 @@ class ValidityPanel(QWidget if _HAVE_QT else object):
         if not _HAVE_QT:
             raise ImportError("PySide6 required for the validity panel")
         super().__init__(parent)
-        self._label = QLabel("no record loaded")
-        self._label.setWordWrap(True)
+        header = QLabel("assumptions & validity")
+        header.setToolTip(
+            "Per-run honesty record: which assumptions (A-001…, see\n"
+            "docs/assumptions.md) were in force for the loaded run, the run\n"
+            "status (OK/FAILED), and regime warnings (e.g. coefficient\n"
+            "extrapolation). Read this before trusting any number.")
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("assumptions & validity"))
+        layout.addWidget(header)
+        self._label = QLabel("no record loaded — run an experiment or "
+                             "file → open run record…")
+        self._label.setWordWrap(True)
         layout.addWidget(self._label)
         layout.addStretch()
 

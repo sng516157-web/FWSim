@@ -97,12 +97,14 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
             self.load_experiment(Path(path))
 
     def load_experiment(self, path: Path) -> None:
-        """Steps 1-3: select + inspect + configure."""
+        """Steps 1-3: select + inspect + configure; also preview in 3D."""
         exp = load_experiment(path)
         self._experiment_path = path
         if exp.vehicle:
             self._vehicle = load_vehicle(path.parent / exp.vehicle)
             self.inspector.set_vehicle(self._vehicle)
+        if exp.kind in ("fixed_body", "free_body") and exp.kinematics is not None:
+            self.scene3d.set_experiment(path)
         self.run_panel.status.setText(f"loaded: {exp.name}")
         self.statusBar().showMessage(f"experiment: {exp.name} ({exp.kind})")
 
@@ -138,7 +140,7 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         ts, _meta = load_record(record_dir)
         self.timeseries.set_record(ts)
         self.validity.show_record(record_dir)
-        self.scene3d.show_record_frame(record_dir, frame=0)
+        self.scene3d.set_record(record_dir)
         self.statusBar().showMessage(f"record: {record_dir.name}")
 
     def _open_record(self):

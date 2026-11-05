@@ -179,31 +179,47 @@ def pose_frame(vis, state: dict, t: float, model=None, env=None) -> None:
                 head.set_transform(tf_h)
 
 
+def build_kinematics_replay(vis, config_path: Path, force_scale: float = 5.0,
+                            vehicle_path: Path | None = None):
+    """Scene state for animating a fixed-body record / experiment config on an
+    existing MeshCat server. Returns (state, period, model, env). Frame i of n
+    is rendered with pose_frame(vis, state, i/n*period, model, env).
+
+    vehicle_path overrides the vehicle file resolution; needed when the config
+    is a run-record copy (its vehicle path is relative to the ORIGINAL
+    experiment location, not the record dir — pass record_dir/vehicle.yaml).
+    """
+    exp = load_experiment(config_path)
+    vehicle = load_vehicle(vehicle_path or (Path(config_path).parent / exp.vehicle))
+    env = environment_from_spec(exp.environment)
+    model = QuasiSteadyBladeElement(vehicle.aero)
+    state = build_scene(vis, vehicle.wings, exp.kinematics,
+                        n_elements=vehicle.blade_elements.n_elements,
+                        force_scale=force_scale)
+    state["kinematics"] = exp.kinematics
+    return state, 1.0 / exp.kinematics.flap_frequency.value, model, env
+
+
 def serve_live(
-    experiment_path: Path, playback_speed: float = 0.05, force_scale: float = 5.0
+    experiment_path: Path, playback_speed: float = 0.05, force_scale: float = 5.0,
+    vehicle_path: Path | None = None,
 ) -> str:
     """Start MeshCat and animate the wingbeat in a loop. Blocks (Ctrl-C stops).
 
     playback_speed < 1 slows the wingbeat down for viewing.
     force_scale is the arrow display scale in metres per newton (display-only).
+    vehicle_path: override vehicle resolution (run-record configs; see
+    build_kinematics_replay).
     Returns the URL (also printed).
     """
     import meshcat
 
-    exp = load_experiment(experiment_path)
-    vehicle = load_vehicle(Path(experiment_path).parent / exp.vehicle)
-    env = environment_from_spec(exp.environment)
-    model = QuasiSteadyBladeElement(vehicle.aero)
-
     vis = meshcat.Visualizer()
-    state = build_scene(vis, vehicle.wings, exp.kinematics,
-                        n_elements=vehicle.blade_elements.n_elements,
-                        force_scale=force_scale)
-    state["kinematics"] = exp.kinematics
+    state, period, model, env = build_kinematics_replay(vis, experiment_path,
+                                                        force_scale, vehicle_path)
     url = vis.url()
     print(f"MeshCat live view: {url}   (Ctrl-C to stop)")
 
-    period = 1.0 / exp.kinematics.flap_frequency.value
     frames_per_beat = 120
     try:
         while True:
@@ -226,16 +242,13 @@ def replay_record(record_dir: Path, playback_speed: float = 0.05, force_scale: f
     kind = meta.get("time_series_meta", {}).get("kind")
     if kind == "free_body":
         return serve_free_body_record(record_dir, playback_speed, force_scale)
-    return serve_live(record_dir / "config.yaml", playback_speed, force_scale)
+    return serve_live(record_dir / "config.yaml", playback_speed, force_scale,
+                      vehicle_path=record_dir / "vehicle.yaml")
 
 
-def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,
-                           force_scale: float = 5.0) -> str:
-    """Live replay of a free_body run record: the recorded 6-DoF trajectory
-    drives the body pose; wings follow the prescribed kinematics relative to
-    the moving body; force arrows recomputed per element from the recorded
-    state (position, velocity, attitude) at each frame."""
-    import meshcat
+def build_free_body_replay(vis, record_dir: Path, force_scale: float = 5.0):
+    """Replay context for a free_body record on an existing MeshCat server.
+    Returns (ctx, n_frames); frame i renders with render_free_body_frame."""
     import meshcat.geometry as g
 
     from fwmav_sim.experiment.record import load_record
@@ -243,16 +256,12 @@ def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,
     record_dir = Path(record_dir)
     ts, meta = load_record(record_dir)
     vehicle = load_vehicle(record_dir / "vehicle.yaml")
-    from fwmav_sim.experiment.config import load_experiment
-
     exp = load_experiment(record_dir / "config.yaml")
     env = environment_from_spec(exp.environment)
     model = QuasiSteadyBladeElement(vehicle.aero)
     from fwmav_sim.experiment.config import kinematics_map
 
     kin_map = kinematics_map(exp, vehicle)
-
-    vis = meshcat.Visualizer()
     state = build_scene(vis, vehicle.wings, next(iter(kin_map.values())),
                         n_elements=vehicle.blade_elements.n_elements,
                         force_scale=force_scale)
@@ -265,18 +274,28 @@ def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,
     vis["body/com"].set_object(g.Sphere(0.004), g.MeshLambertMaterial(color=0x22FF66))
 
     from fwmav_sim.dynamics.spatial import ArticulatedModel
-    art = ArticulatedModel(vehicle)
 
+    ctx = _FreeBodyReplayCtx(ts=ts, vehicle=vehicle, env=env, model=model,
+                             kin_map=kin_map, art=ArticulatedModel(vehicle),
+                             state=state, force_scale=force_scale)
+    return ctx, len(ts.t)
+
+
+def serve_free_body_record(record_dir: Path, playback_speed: float = 0.05,
+                           force_scale: float = 5.0) -> str:
+    """Live replay of a free_body run record: the recorded 6-DoF trajectory
+    drives the body pose; wings follow the prescribed kinematics relative to
+    the moving body; force arrows recomputed per element from the recorded
+    state (position, velocity, attitude) at each frame."""
+    import meshcat
+
+    vis = meshcat.Visualizer()
+    ctx, n = build_free_body_replay(vis, record_dir, force_scale)
     url = vis.url()
     print(f"MeshCat free-body replay: {url}   (Ctrl-C to stop)")
 
-    t_rec = ts.t
-    n = len(t_rec)
+    t_rec = ctx.ts.t
     period_total = t_rec[-1] - t_rec[0]
-
-    ctx = _FreeBodyReplayCtx(ts=ts, vehicle=vehicle, env=env, model=model,
-                             kin_map=kin_map, art=art, state=state,
-                             force_scale=force_scale)
     try:
         while True:
             for i in range(n):

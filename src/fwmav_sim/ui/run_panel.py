@@ -57,9 +57,17 @@ class RunPanel(QWidget if _HAVE_QT else object):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("experiment:"))
         self.combo = QComboBox()
+        self.combo.setToolTip(
+            "Experiment YAML to run: wires a vehicle + wing kinematics +\n"
+            "environment + solver settings into one run (file → open\n"
+            "experiment… also loads its vehicle into the inspector/editor).")
         self.refresh(experiments_dir)
         layout.addWidget(self.combo)
         self.run_button = QPushButton("run")
+        self.run_button.setToolTip(
+            "Run the selected experiment in a worker thread (same code path as\n"
+            "`fwmav-sim run`). On completion the record opens in the time-series,\n"
+            "3D and validity views automatically.")
         self.run_button.clicked.connect(self._run)
         layout.addWidget(self.run_button)
         self.progress = QProgressBar()

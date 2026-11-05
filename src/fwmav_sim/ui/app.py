@@ -21,6 +21,12 @@ def main() -> int:
 
     # MeshCat's QWebEngineView on Windows prefers these attributes set early
     os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox")
+    # Qt-documented requirement for QWebEngineView alongside other widgets in a
+    # resizable window; without it the 3D view can glitch black on maximize /
+    # fullscreen transitions
+    from PySide6.QtCore import Qt
+
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("FlapSim — FWMAV Workbench")
