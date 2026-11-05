@@ -9,6 +9,7 @@ JSON), ``view`` (live MeshCat scene). Further subcommands (validate / compare
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -91,6 +92,17 @@ def main() -> int:
                        help="output vehicle-fragment YAML (provenance: fitted)")
 
     sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
+
+    p_bench = sub.add_parser("benchmark",
+                             help="time experiment runs (speed vs fidelity, M6.75)")
+    p_bench.add_argument("experiments", nargs="*", type=Path, default=None,
+                         help="experiment YAMLs (default: the standard suite)")
+    p_bench.add_argument("--json", type=Path, default=None)
+
+    p_abl = sub.add_parser("ablate",
+                           help="on/off comparison per optional physics block (M6.75)")
+    p_abl.add_argument("experiment", type=Path)
+    p_abl.add_argument("--json", type=Path, default=None)
 
     args = parser.parse_args()
 
@@ -180,9 +192,27 @@ def main() -> int:
 
         return gui_main()
 
-    if args.command == "sensitivity":
-        import json
+    if args.command == "benchmark":
+        from fwmav_sim.analysis.benchmark import format_table, run_benchmark
 
+        rows = run_benchmark(args.experiments or None, out_json=args.json)
+        print(format_table(rows))
+        if args.json:
+            print(f"benchmark record: {args.json}")
+        return 0
+
+    if args.command == "ablate":
+        from fwmav_sim.analysis.ablation import format_ablation, run_ablation
+
+        base, rows = run_ablation(args.experiment)
+        print(format_ablation(str(args.experiment), base, rows))
+        if args.json:
+            args.json.write_text(json.dumps({"baseline": base, "rows": rows}, indent=2),
+                                 encoding="utf-8")
+            print(f"ablation record: {args.json}")
+        return 0
+
+    if args.command == "sensitivity":
         from fwmav_sim.analysis.sensitivity import report_markdown, sensitivity_analysis
 
         base, entries = sensitivity_analysis(args.experiment, params=args.param,

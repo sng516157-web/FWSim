@@ -19,6 +19,14 @@ Sets shipped:
   see Tani & Ward 1969 and the Jones & Babinsky 2010 review). Evaluated
   EXACTLY (form ``poststall_classical``) — not shoehorned into the Dickinson
   single-sine fit, which fits this shape only to ~0.12.
+- ``dickson2006_hummingbird``: the Dickinson-lab integrated-model fits
+  C_L = 1.8 sin(2a), C_D = 1.95 - 1.5 cos(2a) (Dickson, Straw, Poelma &
+  Dickinson 2006, AIAA-2006-34), the set the Purdue flappy simulator
+  (Fei et al. 2019, ICRA) implements and validated on its hummingbird rig.
+  NOTE on d_cp: flappy's chordwise centre-of-pressure fit exists because
+  its model is wing-integrated; FWSim's per-element force distribution
+  produces moments directly, so no CP model is needed here (recorded, not
+  implemented).
 """
 
 from __future__ import annotations
@@ -43,6 +51,20 @@ _SETS: dict[str, dict] = {
         "regime": "flat plate, post-stall / high-alpha, Re ~ 1e3+ (inviscid+separated)",
         "reference": ("classical post-stall flat-plate model (Tani & Ward 1969; "
                       "Jones & Babinsky 2010 review); cn = 2.0 nominal"),
+        "source": "literature",
+    },
+    "dickson2006_hummingbird": {
+        "form": "dickinson1999",
+        "coefficients": {
+            # C_L = 1.8 sin(2a)  =>  0 + 1.8 sin(2 a_deg - 0)
+            # C_D = 1.95 - 1.5 cos(2a)  =>  1.95 - 1.5 cos(2 a_deg - 0)
+            "cl_0": 0.0, "cl_slope": 1.8, "cl_freq": 2.0, "cl_phase_deg": 0.0,
+            "cd_0": 1.95, "cd_slope": 1.5, "cd_freq": 2.0, "cd_phase_deg": 0.0,
+        },
+        "regime": "hummingbird-scale flapping (validated on the Purdue rig, Fei 2019)",
+        "reference": ("Dickson, Straw, Poelma & Dickinson 2006, 44th AIAA "
+                      "Aerospace Sciences Meeting, AIAA-2006-34 (as implemented "
+                      "and rig-validated by Fei et al. 2019, flappy ICRA)"),
         "source": "literature",
     },
 }

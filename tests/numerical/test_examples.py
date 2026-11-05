@@ -36,3 +36,10 @@ def test_closed_loop_example(capsys):
     out = _run_example("closed_loop_hover.py", capsys)
     assert "trim solution" in out
     assert "max |du_thrust|" in out
+
+
+@pytest.mark.slow
+def test_launch_transient_example(capsys):
+    out = _run_example("launch_transient.py", capsys)
+    assert "max |position| while clamped: 0.00e+00" in out
+    assert "at end" in out

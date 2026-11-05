@@ -66,3 +66,24 @@ def test_unknown_set_rejected():
     with pytest.raises(ValueError, match="unknown coefficient set"):
         coefficient_set_info("nonsense")
     assert "dickinson1999_robofly" in available_sets()
+
+
+def test_dickson2006_set_matches_flappy_fit():
+    """The Dickson 2006 set must reproduce flappy's C_N decomposition:
+    C_L = 1.8 sin 2a, C_D = 1.95 - 1.5 cos 2a (so C_N = C_L cos a + C_D sin a
+    equals flappy Wing.cpp's 1.8 sin2a cos a + 1.95 sin a - 1.5 cos2a sin a)."""
+    from fwmav_sim.aero.quasi_steady import QuasiSteadyBladeElement
+    from fwmav_sim.vehicle.schema import AeroModelSpec
+
+    spec = AeroModelSpec(name="quasi_steady_blade_element",
+                         coefficient_set="dickson2006_hummingbird")
+    model = QuasiSteadyBladeElement(spec)
+    for a_deg in (0.0, 15.0, 30.0, 45.0, 60.0, 90.0):
+        a = np.radians(a_deg)
+        cl, cd = model.cl_cd(a)
+        assert cl == pytest.approx(1.8 * np.sin(2 * a), abs=1e-12)
+        assert cd == pytest.approx(1.95 - 1.5 * np.cos(2 * a), abs=1e-12)
+        cn_model = cl * np.cos(a) + cd * np.sin(a)
+        cn_flappy = 1.8 * np.sin(2 * a) * np.cos(a) + 1.95 * np.sin(a) \
+            - 1.5 * np.cos(2 * a) * np.sin(a)
+        assert cn_model == pytest.approx(cn_flappy, abs=1e-12)

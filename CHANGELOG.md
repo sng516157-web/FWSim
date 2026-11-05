@@ -4,6 +4,30 @@ All notable changes to FWSim, newest first. The project follows the
 milestone structure of `FWMAV_Milestone_Action_Plan.md`; post-roadmap items
 are numbered P1+; M6 is the usability/fidelity milestone.
 
+## M6.75 — Unified Base Constraint & Platform Hardening (2026-11-06)
+
+- **DR-007: base constraint as experiment data.** `base: {mode:
+  fixed|free|pivot, release_time}` on every experiment; kinds become
+  backward-compatible aliases (overrides recorded in the record). Launch
+  transient (clamp → release) is now expressible
+  (`experiments/m6p75_launch_transient.yaml`; frozen pre-release, continuous
+  release — tested).
+- Free-body records gain per-term per-wing force channels (rig schema).
+- `dickson2006_hummingbird` registry set (Dickson et al. 2006 AIAA-2006-34,
+  the flappy fit).
+- `fwmav-sim benchmark` (runtime accounting) and `fwmav-sim ablate`
+  (per-block on/off force tables).
+
+## M6.5 — Clarity Pass (2026-11-05)
+
+- Comparative analysis (`docs/literature/flappy_flapsim_strengths.md`);
+  repo cleanup; `examples/` teaching scripts; compact vehicle authoring
+  (`format: compact-v1`); `docs/architecture.md`; GUI basic mode.
+
+## M6.5-pre — rename (2026-11-05)
+
+- Project renamed **FlapSim → FWSim** (name collision with arXiv:2610.40902).
+
 ## M6 — Usability & Physics Fidelity (2026-11-05, in progress)
 
 - **Workbench (MATLAB-inspired UX):** console dock with global error
