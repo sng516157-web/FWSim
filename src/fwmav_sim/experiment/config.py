@@ -196,9 +196,19 @@ def kinematics_map(exp: ExperimentDefinition, vehicle: VehicleDefinition):
 def load_experiment(path: str | Path) -> ExperimentDefinition:
     path = Path(path)
     with open(path, encoding="utf-8") as fh:
-        return ExperimentDefinition.model_validate(yaml.safe_load(fh))
+        raw = yaml.safe_load(fh)
+    from fwmav_sim.vehicle.compact import expand_experiment, is_compact
+
+    if is_compact(raw):
+        raw = expand_experiment(raw)
+    return ExperimentDefinition.model_validate(raw)
 
 
 def load_vehicle(path: str | Path) -> VehicleDefinition:
+    from fwmav_sim.vehicle.compact import expand_compact, is_compact
+
     with open(path, encoding="utf-8") as fh:
-        return VehicleDefinition.model_validate(yaml.safe_load(fh))
+        raw = yaml.safe_load(fh)
+    if is_compact(raw):
+        raw = expand_compact(raw)
+    return VehicleDefinition.model_validate(raw)
