@@ -359,7 +359,7 @@ External code reviewed for reuse, with an explicit verdict per project. Nothing 
 
 ### 8.1 `sng516157-web/2D-RL-Control-for-a-flapping-wing-drone` (Steven's RL sandbox, reviewed 2026-11-03)
 
-2D flapping-wing MAV + REINFORCE controller (PyTorch/pygame, MIT license). Local reference copies: `reference_rl_README.md`, `reference_rl_flapping.py`.
+2D flapping-wing MAV + REINFORCE controller (PyTorch/pygame, MIT license). Local reference copies under `docs/reference/rl_sandbox/`.
 
 **Not reusable — the plant.** Thrust linear in frequency (`T = k·f`; the repo's own README flags `T ∝ f²` as the needed fix), Euler integration, and a sinusoidal-plus-Gaussian "flutter" torque standing in for physics would violate brief §3.3 (averaged forces must derive from time-resolved runs), §5.7 (established integrators), and §8.2/§14.5 (no hard-coded plausible behaviour as dynamics). No line of its `flapper_step` migrates into FWSim. Retained value here: a documented anti-pattern for the assumption/validity panel — what a cycle-averaged, no-blade-element toy model looks like.
 

@@ -81,7 +81,7 @@ The reduced model consumes wingbeat-averaged forces **derived from an M1 time-re
 
 ### 2.4a Foil test — RL-sandbox dynamics kernel (added 2026-11-03)
 
-**Purpose:** cross-check the M2 dynamics kernel in its single-rigid-body limit against Steven's 2D RL sandbox (`github.com/sng516157-web/2D-RL-Control-for-a-flapping-wing-drone`; local copies `reference_rl_README.md`, `reference_rl_flapping.py`; see action plan §8.1). This validates the *kernel* (mass/inertia/force-law/lever-arm assembly) against an independently written, working implementation. It validates **nothing about aerodynamics** — the sandbox's `T = k·f` linear thrust law is adopted here only as a synthetic cycle-averaged force law, labelled `source: estimated`, never presented as physics.
+**Purpose:** cross-check the M2 dynamics kernel in its single-rigid-body limit against Steven's 2D RL sandbox (`github.com/sng516157-web/2D-RL-Control-for-a-flapping-wing-drone`; local copies under `docs/reference/rl_sandbox/`; see action plan §8.1). This validates the *kernel* (mass/inertia/force-law/lever-arm assembly) against an independently written, working implementation. It validates **nothing about aerodynamics** — the sandbox's `T = k·f` linear thrust law is adopted here only as a synthetic cycle-averaged force law, labelled `source: estimated`, never presented as physics.
 
 **Configuration:** `experiments/m2_foil_rl_sandbox.yaml` —
 - Abdomen joint **locked at α_abd = 0**, abdomen mass zero (or coincident with thorax CoM): two-mass model degenerates to one rigid body.
