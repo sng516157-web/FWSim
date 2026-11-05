@@ -37,9 +37,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from fwmav_sim.core.transforms import R_B_SP_wing
 from fwmav_sim.kinematics.blade_element import dihedral_of, wing_chain
 from fwmav_sim.kinematics.prescribed import wing_state
-from fwmav_sim.core.transforms import R_B_SP_wing
 
 _HALF = (0.05, 0.2)  # default tau_rise / tau_decay as half-stroke fractions
 

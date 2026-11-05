@@ -132,13 +132,25 @@ class ReducedParamsSpec(BaseModel):
     lock_abdomen: bool = False
 
 
+class ClosedLoopSpec(BaseModel):
+    """Closed-loop hover demo on the reduced model (M6 Task 8)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    forces_record: str  # cycle-averaged forces JSON (M1 record), relative path
+    q_diag: list[float] = Field(min_length=8, max_length=8)  # LQR state weights
+    r_diag: list[float] = Field(min_length=2, max_length=2)  # LQR control weights
+    initial_perturbation: list[float] = Field(default_factory=lambda: [0.0] * 8)
+
+
 class ExperimentDefinition(BaseModel):
     """Top-level experiment configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)
-    kind: Literal["fixed_body", "suspended_pendulum", "free_reduced", "free_body"]
+    kind: Literal["fixed_body", "suspended_pendulum", "free_reduced", "free_body",
+                  "closed_loop_reduced"]
     vehicle: str | None = None  # path relative to the experiment file
 
     # fixed_body / free_body (aero runs)
@@ -156,6 +168,7 @@ class ExperimentDefinition(BaseModel):
     initial_state: list[float] | None = None
     initial_state_free: InitialStateFreeSpec | None = None
     isolation: IsolationFlagsSpec | None = None
+    closed_loop: ClosedLoopSpec | None = None
     solver: SolverSpec | None = None
 
 

@@ -1,0 +1,20 @@
+# M6 Task 8 demo: closed-loop hover on the Level-1 reduced model.
+# Trim -> linearize -> LQR -> simulate from a perturbed initial state.
+# Wing forces come from the cycle-averaged M1 hover record (A-007 honesty
+# chain); this is a design-loop demo, NOT a flight-ready autopilot.
+name: m6_closed_loop_hover
+kind: closed_loop_reduced
+vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
+
+closed_loop:
+  forces_record: ../derivations/m6_hover_avg_forces.json
+  q_diag: [1.0, 10.0, 50.0, 5.0, 1.0, 1.0, 5.0, 1.0]
+  r_diag: [1.0, 1.0]
+  initial_perturbation: [0.0, -0.005, 0.2, 0.05, 0.0, 0.0, 0.0, 0.0]
+
+solver:
+  integrator: DOP853
+  rtol: 1.0e-9
+  atol: 1.0e-12
+  steps_per_wingbeat: 200
+  max_time: 2.0

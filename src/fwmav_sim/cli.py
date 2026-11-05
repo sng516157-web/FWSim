@@ -78,6 +78,18 @@ def main() -> int:
     p_urdf.add_argument("-o", "--out", type=Path, required=True)
     p_urdf.add_argument("--name", default=None)
 
+    p_fit = sub.add_parser("fit-sysid",
+                           help="fit aero coefficients to a calibration dataset (M6 T9)")
+    p_fit.add_argument("experiment", type=Path,
+                       help="fixed-body experiment YAML (vehicle + kinematics + environment)")
+    p_fit.add_argument("dataset_dir", type=Path)
+    p_fit.add_argument("--columns", nargs=3, required=True, metavar=("FX", "FY", "FZ"),
+                       help="dataset force column names (world frame)")
+    p_fit.add_argument("--free", nargs="+", default=None,
+                       help="coefficients to fit (default: cl_0 cl_slope cd_0 cd_slope)")
+    p_fit.add_argument("-o", "--out", type=Path, required=True,
+                       help="output vehicle-fragment YAML (provenance: fitted)")
+
     sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
 
     args = parser.parse_args()
@@ -210,6 +222,32 @@ def main() -> int:
             header + yaml.safe_dump(vehicle.model_dump(mode="json"), sort_keys=False),
             encoding="utf-8")
         print(f"vehicle skeleton: {args.out}")
+        return 0
+
+    if args.command == "fit-sysid":
+        from fwmav_sim.analysis.sysid import (
+            DEFAULT_FREE,
+            fit_coefficients,
+            load_fit_dataset,
+            write_fragment,
+        )
+        from fwmav_sim.environment.spec import environment_from_spec
+        from fwmav_sim.experiment.config import load_experiment, load_vehicle
+
+        exp = load_experiment(args.experiment)
+        if exp.kind != "fixed_body":
+            print("fit-sysid requires a fixed_body experiment")
+            return 1
+        vehicle = load_vehicle(args.experiment.parent / exp.vehicle)
+        env = environment_from_spec(exp.environment)
+        t, F, _manifest = load_fit_dataset(args.dataset_dir, tuple(args.columns))
+        result = fit_coefficients(vehicle, exp.kinematics, env, t, F,
+                                  free=tuple(args.free) if args.free else DEFAULT_FREE,
+                                  dataset_ref=str(args.dataset_dir))
+        out = write_fragment(result, str(args.dataset_dir), args.out)
+        print(f"rms {result.rms_baseline:.4g} -> {result.rms_residual:.4g} "
+              f"({result.n_samples} samples, free: {', '.join(result.free)})")
+        print(f"fitted fragment: {out}")
         return 0
 
     return 1

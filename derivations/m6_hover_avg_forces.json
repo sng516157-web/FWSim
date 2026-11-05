@@ -1,0 +1,27 @@
+{
+  "source_record": "outputs\\20261105_180215_m1_fixed_body_hover",
+  "vehicle": "bio_abdomen_fwmav_draft",
+  "flap_frequency_hz": 15.0,
+  "per_wing": {
+    "wing_left": {
+      "F_avg": [
+        0.0010695206172057887,
+        0.0024619952071505066,
+        -0.06882978782197746
+      ],
+      "cycle_spread": 0.00026863103159855523
+    },
+    "wing_right": {
+      "F_avg": [
+        0.0010695206172057915,
+        -0.0024619952071505144,
+        -0.06882978782197745
+      ],
+      "cycle_spread": 0.0002686310315985601
+    }
+  },
+  "convention": "mean resultant applied at wing-root hinge, expressed in B",
+  "assumptions": [
+    "A-007"
+  ]
+}

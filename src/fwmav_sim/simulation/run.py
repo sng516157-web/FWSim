@@ -275,6 +275,53 @@ def _abdomen_control(exp, vehicle):
     raise ValueError(f"unknown abdomen mode {abdomen.mode!r}")
 
 
+def _run_closed_loop(exp, experiment_path):
+    """Closed-loop hover demo (M6 Task 8): trim -> linearize -> LQR -> simulate."""
+    from fwmav_sim.control.closed_loop import run_closed_loop
+    from fwmav_sim.control.trim import solve_trim
+
+    if not (exp.vehicle and exp.closed_loop and exp.solver):
+        raise ValueError("closed_loop_reduced requires vehicle, closed_loop, solver")
+    vehicle_path = experiment_path.parent / exp.vehicle
+    vehicle = load_vehicle(vehicle_path)
+    params = ReducedModelParams.from_vehicle(vehicle, lock_abdomen=False)
+    per_wing, w = load_average_forces(experiment_path.parent / exp.closed_loop.forces_record,
+                                      vehicle.name)
+    F_avg = np.zeros(3)
+    x_Ts = []
+    for wing_name, f_avg in per_wing:
+        wing = next(x for x in vehicle.wings if x.name == wing_name)
+        F_avg += np.asarray(f_avg)
+        x_Ts.append(wing.hinge_location.value[0])
+    r_T = (float(np.mean(x_Ts)) if x_Ts else 0.0, 0.0)
+    trim = solve_trim((float(F_avg[0]), float(F_avg[2])), r_T, params)
+    cl = exp.closed_loop
+    result = run_closed_loop(
+        params, trim, trim.r_T_trim,
+        Q=np.diag(cl.q_diag), R=np.diag(cl.r_diag),
+        x0=np.asarray(cl.initial_perturbation, float),
+        t_end=exp.solver.max_time, rtol=exp.solver.rtol, atol=exp.solver.atol)
+    extra_meta = {
+        "experiment_file": str(experiment_path),
+        "vehicle_file": str(vehicle_path),
+        "status": "OK",
+        "trim": {"thrust_scale": trim.thrust_scale, "alpha_abd_trim": trim.alpha_abd_trim,
+                 "tau_act_trim": trim.tau_act_trim, "x_T_shift": trim.x_T_shift,
+                 "r_T_trim": list(trim.r_T_trim),
+                 "residual": [float(r) for r in trim.residual]},
+        "lqr_gain": result.K.tolist(),
+        "validity": {
+            "assumption_ids": ["A-007"],
+            "warnings": [
+                "Design-loop demo on the Level-1 reduced model (cycle-averaged "
+                "forces, A-007); NOT a flight-ready autopilot.",
+                *w,
+            ],
+        },
+    }
+    return result.ts, vehicle_path, extra_meta
+
+
 def dispatch_experiment(experiment_path: str | Path):
     """Load and run an experiment WITHOUT saving a record.
 
@@ -292,6 +339,8 @@ def dispatch_experiment(experiment_path: str | Path):
         return _run_free_reduced(exp, experiment_path)
     if exp.kind == "free_body":
         return _run_free_body(exp, experiment_path)
+    if exp.kind == "closed_loop_reduced":
+        return _run_closed_loop(exp, experiment_path)
     raise ValueError(f"unknown experiment kind {exp.kind!r}")
 
 

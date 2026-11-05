@@ -62,7 +62,10 @@ def test_reversal_clock():
 def test_wake_capture_zero_at_reversal_peaks_after():
     spec = UnsteadyTermSpec(gain=0.5, params={"tau_rise_frac": 0.05, "tau_decay_frac": 0.2})
     T_half = 0.5 / _KIN.flap_frequency.value
-    f_at = lambda t: wake_capture_force(_el_or(_EL), _EL, _KIN, t, _E_L, 1.225, spec)
+
+    def f_at(t):
+        return wake_capture_force(None, _EL, _KIN, t, _E_L, 1.225, spec)
+
     assert np.all(f_at(0.0) == 0.0)  # exactly at reversal: window = 0
     # rises to a peak inside the half-stroke, then decays
     ts = np.linspace(0.001, T_half, 50)
@@ -78,10 +81,6 @@ def test_wake_capture_zero_at_reversal_peaks_after():
     f1 = wake_capture_force(None, _EL, _KIN, ts[peak_i], _E_L, 1.225, spec)
     # s doubles -> v_peak doubles -> force x4; area doubles -> another x2 => x8
     assert np.linalg.norm(f2) / np.linalg.norm(f1) == pytest.approx(8.0, rel=1e-9)
-
-
-def _el_or(el):
-    return None  # wing arg unused by the reduced form
 
 
 def test_wake_capture_rise_decay_shape():
