@@ -9,3 +9,4 @@ dist/
 build/
 derivations/_*.pdf
 derivations/_*.txt
+datasets/raw/

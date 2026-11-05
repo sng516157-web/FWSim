@@ -98,15 +98,23 @@ def load_dataset(dataset_dir: str | Path) -> ExperimentalDataset:
         yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     )
 
-    csvs = sorted(dataset_dir.glob("*.csv"))
+    csvs = sorted(dataset_dir.glob("*.csv")) + sorted(dataset_dir.glob("*.csv.gz"))
     if not csvs:
         raise FileNotFoundError(f"no CSV files in {dataset_dir}")
-    df = pd.concat([pd.read_csv(c) for c in csvs], ignore_index=True)
+    # per-file identity is preserved (multi-experiment datasets like the
+    # Beatus rig set): source_file column carries the CSV stem
+    frames = []
+    for c in csvs:
+        df_c = pd.read_csv(c)
+        if len(csvs) > 1:
+            df_c["source_file"] = c.stem
+        frames.append(df_c)
+    df = pd.concat(frames, ignore_index=True)
 
     missing = [c for c in manifest.columns if c not in df.columns]
     if missing:
         raise ValueError(f"manifest columns missing from CSV: {missing}")
-    undeclared = [c for c in df.columns if c not in manifest.columns]
+    undeclared = [c for c in df.columns if c not in manifest.columns and c != "source_file"]
     if undeclared:
         raise ValueError(f"CSV columns without quantity/unit/frame declaration: {undeclared}")
 

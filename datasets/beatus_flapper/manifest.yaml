@@ -1,0 +1,19 @@
+name: beatus_flapper_rig
+label: validation
+sampling_rate_hz: 5000.0
+source: "Sharvit, Karl & Beatus, ICLR 2025 (AdaptiveSpectrumLayer repo, ML/Data/*_clean.pt)"
+provenance: "converted from the authors' public tensors; raw .pt not committed"
+notes: >
+  Custom robotic flapping-wing rig (single wing). Kinematics: 3 wing Euler
+  angles (pitch, yaw, roll per the repo README), converted deg -> rad.
+  Forces: 4 raw force-sensor channels, unit assumed N pending confirmation
+  against the paper (magnitudes ~0.35 N consistent with the rig scale).
+columns:
+  t: {quantity: time, unit: s, frame: W}
+  pitch: {quantity: wing_angle, unit: rad, frame: wing_root, uncertainty: "sensor/tracking noise (unquantified)"}
+  yaw: {quantity: wing_angle, unit: rad, frame: wing_root}
+  roll: {quantity: wing_angle, unit: rad, frame: wing_root}
+  F1: {quantity: force, unit: N, frame: load_cell_1, note: "raw sensor channel; mapping to axes per the paper's Fig. 1"}
+  F2: {quantity: force, unit: N, frame: load_cell_2, note: "raw sensor channel"}
+  F3: {quantity: force, unit: N, frame: load_cell_3, note: "raw sensor channel"}
+  F4: {quantity: force, unit: N, frame: load_cell_4, note: "raw sensor channel"}
