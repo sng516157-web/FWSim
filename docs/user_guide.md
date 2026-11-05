@@ -1,7 +1,8 @@
 # FWSim User Guide
 
 A 10-minute path from install to a hover force record, plus the four concepts
-the whole tool is built around.
+the whole tool is built around. New here? Start with `examples/` (tiny
+runnable scripts) and `docs/architecture.md` (the one-page map).
 
 ## Concepts (read this first — everything else follows)
 

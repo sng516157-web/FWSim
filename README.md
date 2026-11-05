@@ -8,6 +8,9 @@ This repository is under construction. The behavioural and scientific contract i
 `FWMAV_Simulator_Project_Brief.md`; the build order is
 `FWMAV_Milestone_Action_Plan.md`; per-stage prompts live in `Milestones/`.
 
+**New here?** Run `python examples/fixed_body_hover.py`, then read
+`docs/architecture.md` (the one-page map) and `docs/user_guide.md`.
+
 ## Conventions (frozen in Milestone 0)
 
 - All units are SI internally.
@@ -66,3 +69,5 @@ comes from run records — no stored demo data.
 | M3 | Nonlinear articulated free-body simulation | accepted (report: `docs/milestone_reports/M3.md`) |
 | M4 | Validation and experiment comparison | accepted (report: `docs/milestone_reports/M4.md`) |
 | M5 | Integrated workbench | accepted (report: `docs/milestone_reports/M5.md`) |
+| M6 | Usability & physics fidelity | accepted (report: `docs/milestone_reports/M6.md`) |
+| M7 | Fidelity ladder & learning interfaces | planned (`Milestones/M7_fidelity_ladder_and_interfaces.md`) |

@@ -59,6 +59,10 @@ class ParameterEditor(QWidget if _HAVE_QT else object):
         self._inner = QWidget()
         self._form = QFormLayout(self._inner)
         self._scroll.setWidget(self._inner)
+        why = QLabel("change values safely — edits write to the same YAML the "
+                     "CLI runs; invalid entries flag red immediately")
+        why.setWordWrap(True)
+        outer.addWidget(why)
         outer.addWidget(QLabel("select an object in the inspector"))
         outer.addWidget(self._error)
         outer.addWidget(self._scroll)

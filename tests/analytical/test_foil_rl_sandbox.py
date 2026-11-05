@@ -1,7 +1,8 @@
 """§11.2 foil tests — RL-sandbox dynamics-kernel cross-check (M2 §2.4a).
 
 Cross-checks the reduced model in its single-rigid-body limit (abdomen
-locked, m_a = 0) against Steven's 2D RL sandbox (docs/reference/rl_sandbox/reference_rl_flapping.py).
+locked, m_a = 0) against Steven's 2D RL sandbox
+(docs/reference/rl_sandbox/reference_rl_flapping.py).
 Expectations are computed from the sandbox's closed-form dynamics by hand,
 never by running the sandbox code. The sandbox's T = k f thrust law is
 synthetic — this validates the kernel (mass/inertia/force-law/lever-arm

@@ -117,9 +117,28 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         ribbon_bar.setMovable(False)
         ribbon_bar.addWidget(self.ribbon)
 
+        # basic mode (M6.5 Task 5): advanced docks hidden behind a toggle;
+        # failures still surface as modal dialogs (M6) regardless
+        from PySide6.QtWidgets import QPushButton
+
+        self._advanced_docks = [dock_l, dock_b]
+        self.advanced_button = QPushButton("Advanced ▾")
+        self.advanced_button.setCheckable(True)
+        self.advanced_button.setToolTip(
+            "Show/hide the advanced panels (inspector, parameter editor,\n"
+            "records browser, console). The core loop — load, run, 3D,\n"
+            "scope, validity — is always visible.")
+        self.advanced_button.toggled.connect(self._set_advanced)
+        ribbon_bar.addWidget(self.advanced_button)
+        self._set_advanced(False)
+
         self.statusBar().showMessage("open an experiment to begin (file → open experiment…)")
 
     # --- workflow wiring (brief §9) -------------------------------------------
+
+    def _set_advanced(self, on: bool) -> None:
+        for dock in self._advanced_docks:
+            dock.setVisible(on)
 
     def _open_experiment(self):
         path, _ = QFileDialog.getOpenFileName(self, "open experiment", "experiments",

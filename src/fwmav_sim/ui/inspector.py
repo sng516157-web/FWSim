@@ -6,7 +6,7 @@ from __future__ import annotations
 
 try:
     from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
-    from PySide6.QtWidgets import QTreeView, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import QLabel, QTreeView, QVBoxLayout, QWidget
     _HAVE_QT = True
 except ImportError:
     _HAVE_QT = False
@@ -41,6 +41,10 @@ class InspectorPanel(QWidget if _HAVE_QT else object):
         self.tree.setModel(self.model)
         self.tree.setColumnWidth(0, 260)
         layout = QVBoxLayout(self)
+        why = QLabel("what the vehicle is made of — bodies, joints, wings, "
+                     "kinematics, with provenance badges")
+        why.setWordWrap(True)
+        layout.addWidget(why)
         layout.addWidget(self.tree)
         self.tree.selectionModel().currentChanged.connect(self._selected)
         self._vehicle: VehicleDefinition | None = None
