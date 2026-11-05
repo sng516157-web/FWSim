@@ -73,7 +73,11 @@ def _run_fixed_body(exp, experiment_path):
                                   if model.set_info else "inline"),
             "warnings": [
                 coef_note,
-                "Wake capture, clap-and-fling and wing deformation are excluded (A-002, A-005).",
+                ("Reduced-order unsteady terms ACTIVE (M6): "
+                 + ", ".join(sorted(vehicle.aero.unsteady))
+                 + " — estimated gains, not validated (A-002 relaxed)."
+                 if vehicle.aero.unsteady else
+                 "Wake capture, clap-and-fling and wing deformation are excluded (A-002, A-005)."),
             ],
         },
     }

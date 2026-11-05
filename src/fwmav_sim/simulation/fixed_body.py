@@ -58,6 +58,8 @@ def run_fixed_body(
     # wings that carry a mass — what a force balance measures on a rig on top
     # of the aerodynamic force (F_sensor = F_aero + F_inertial)
     inertia_props = {name: wing_mass_properties(w) for name, w in wings.items()}
+    unsteady = vehicle.aero.unsteady or {}
+    unsteady_on = bool(unsteady)
 
     channels: dict[str, np.ndarray] = {}
     for name, w in wings.items():
@@ -71,8 +73,22 @@ def run_fixed_body(
         if inertia_props[name] is not None:
             for key in ("F_inertial", "M_inertial", "F_sensor"):
                 channels[f"{name}/{key}"] = np.zeros((n, 3))
+        if unsteady_on:
+            channels[f"{name}/F_unsteady"] = np.zeros((n, 3))
+
+    # mirror-pair tip positions for the clap-and-fling term (M6): pair each
+    # wing with the first wing of the opposite side
+    mirror_of: dict[str, str | None] = {}
+    if "clap_fling" in unsteady:
+        for name, w in wings.items():
+            mirror_of[name] = next((n2 for n2, w2 in wings.items() if w2.side != w.side), None)
 
     for i, ti in enumerate(t):
+        tips = {}
+        if "clap_fling" in unsteady:
+            from fwmav_sim.aero.unsteady import _wing_tip_W
+
+            tips = {name: _wing_tip_W(w, kinematics[name], ti) for name, w in wings.items()}
         for name, w in wings.items():
             F_sum = np.zeros(3)
             M_sum = np.zeros(3)
@@ -82,6 +98,10 @@ def run_fixed_body(
             res = np.zeros(len(elements[name]))
             for j, el in enumerate(elements[name]):
                 st = element_state(w, el, kinematics[w.name], ti, nu=env.nu, v_air_W=env.v_air_W)
+                if unsteady_on:
+                    st.aux = {"wing": w, "kin": kinematics[w.name],
+                              "mirror_tip_W": tips.get(mirror_of.get(name)),
+                              "own_tip_W": tips.get(name)}
                 ef = model.element_forces(st, env)
                 F_sum += ef.resultant
                 M_sum += np.cross(st.r_W, ef.resultant)
@@ -91,6 +111,8 @@ def run_fixed_body(
                 res[j] = st.reynolds
                 for key, vec in (("F_trans", ef.F_trans), ("F_rot", ef.F_rot), ("F_am", ef.F_am)):
                     channels[f"{name}/{key}"][i] += vec
+                if unsteady_on and ef.F_unsteady is not None:
+                    channels[f"{name}/F_unsteady"][i] += ef.F_unsteady
             channels[f"{name}/F_total"][i] = F_sum
             channels[f"{name}/M_total"][i] = M_sum
             channels[f"{name}/P_aero"][i] = P

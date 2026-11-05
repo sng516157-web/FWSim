@@ -198,6 +198,16 @@ class BladeElementSpec(BaseModel):
     discretization: Literal["equal_span", "equal_area"] = "equal_span"
 
 
+class UnsteadyTermSpec(BaseModel):
+    """One optional reduced-order unsteady term (M6 Task 7; A-002 relaxed
+    only where explicitly enabled). Off when absent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gain: float = 0.5  # empirical gain K (estimated; fit from rig data later)
+    params: dict[str, float] = Field(default_factory=dict)  # term-specific
+
+
 class AeroModelSpec(BaseModel):
     """Aerodynamic model selection and its coefficient set with provenance.
 
@@ -211,6 +221,10 @@ class AeroModelSpec(BaseModel):
     name: str = Field(min_length=1)  # e.g. "quasi_steady_blade_element"
     coefficients: dict[str, Parameter] = Field(default_factory=dict)
     coefficient_set: str | None = None  # registry name (aero/registry.py)
+    # optional reduced-order unsteady terms (M6 Task 7), off by default:
+    # wake_capture: {gain, params: {tau_rise_frac, tau_decay_frac}}
+    # clap_fling:   {gain, params: {gap_threshold}}  (left/right mirror pairs)
+    unsteady: dict[str, UnsteadyTermSpec] = Field(default_factory=dict)
 
 
 class AbdomenAeroSpec(BaseModel):

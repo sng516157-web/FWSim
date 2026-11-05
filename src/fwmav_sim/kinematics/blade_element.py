@@ -236,6 +236,9 @@ class ElementState:
     # dataclass extended, documented in the M1 report):
     pitch_rate: float  # theta_w_dot [rad/s]; identical command for both wings
     pitch_axis_fraction: float  # x_hat_0: pitch axis location, 0 = leading edge
+    t: float = 0.0  # element evaluation time (needed by history-aware terms, M6)
+    s: float = 0.0  # spanwise station of the element centre (unsteady terms)
+    aux: dict | None = None  # optional runner-provided context (unsteady terms)
 
 
 class WingFrameContext:
@@ -247,9 +250,10 @@ class WingFrameContext:
     """
 
     __slots__ = ("ks", "R_WR", "dR_WR", "ddR_WR", "omega_WR", "R_world_SP",
-                 "R_wb", "hinge_W", "omega_W", "v_B_W", "v_air_W", "p_B_W")
+                 "R_wb", "hinge_W", "omega_W", "v_B_W", "v_air_W", "p_B_W", "aux")
 
     def __init__(self, wing, kin, t, R_wb, p_B_W, omega_W, v_B_W, v_air_W):
+        self.aux = None  # runner-provided context for optional terms (M6)
         self.ks = wing_state(kin, t)
         self.R_WR, self.dR_WR, self.ddR_WR, self.omega_WR = wing_chain(self.ks, wing.side)
         self.R_world_SP = R_wb @ R_B_SP_wing(kin.stroke_plane_angle.value,
@@ -288,6 +292,9 @@ def element_state_ctx(wing: WingSpec, element: BladeElement, ctx: WingFrameConte
         reynolds=speed * element.chord / nu, side=side,
         pitch_rate=ctx.ks.theta_w_dot,
         pitch_axis_fraction=wing.pitch_axis_fraction.value,
+        t=ctx.ks.t,
+        s=element.s,
+        aux=ctx.aux,
     )
 
 
@@ -373,4 +380,6 @@ def element_state(
         side=side,
         pitch_rate=ks.theta_w_dot,
         pitch_axis_fraction=wing.pitch_axis_fraction.value,
+        t=t,
+        s=element.s,
     )

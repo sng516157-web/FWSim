@@ -32,10 +32,14 @@ class ElementForces:
     F_trans: np.ndarray  # (3,) translational (circulatory + profile drag)
     F_rot: np.ndarray  # (3,) rotational circulation
     F_am: np.ndarray  # (3,) added mass
+    F_unsteady: np.ndarray | None = None  # optional reduced-order terms (M6, A-002)
 
     @property
     def resultant(self) -> np.ndarray:
-        return self.F_trans + self.F_rot + self.F_am
+        out = self.F_trans + self.F_rot + self.F_am
+        if self.F_unsteady is not None:
+            out = out + self.F_unsteady
+        return out
 
 
 class AerodynamicModel(Protocol):

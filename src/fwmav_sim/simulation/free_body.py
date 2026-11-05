@@ -148,17 +148,36 @@ class FreeBodyPlant:
         rec: dict[str, dict[str, np.ndarray]] = {}
         from fwmav_sim.kinematics.blade_element import WingFrameContext, element_state_ctx
 
+        # optional unsteady terms (M6 Task 7): mirror-pair tips under body motion
+        unsteady = getattr(self.vehicle.aero, "unsteady", {}) or {}
+        tips = {}
+        mirror_of = {}
+        if "clap_fling" in unsteady:
+            from fwmav_sim.aero.unsteady import _wing_tip_W
+
+            wings = self.vehicle.wings
+            tips = {w.name: _wing_tip_W(w, self.kinematics_map[w.name], t, R_wb, p)
+                    for w in wings}
+            for w in wings:
+                mirror_of[w.name] = next((w2.name for w2 in wings if w2.side != w.side), None)
+
         for wing in self.vehicle.wings:
             ctx = WingFrameContext(wing, self.kinematics_map[wing.name], t, R_wb, p,
                                    omega_W, v_W, self.env.v_air_W)
+            if unsteady:
+                ctx.aux = {"wing": wing, "kin": self.kinematics_map[wing.name],
+                           "mirror_tip_W": tips.get(mirror_of.get(wing.name)),
+                           "own_tip_W": tips.get(wing.name)}
             F_sum = {"F_trans": np.zeros(3), "F_rot": np.zeros(3), "F_am": np.zeros(3)}
+            if unsteady:
+                F_sum["F_unsteady"] = np.zeros(3)
             r_app = np.zeros(3)  # force-weighted application point (documented)
             w_tot = 0.0
             for el in self._elements[wing.name]:
                 st = element_state_ctx(wing, el, ctx, nu=self.env.nu)
                 ef = self.aero.element_forces(st, self.env)
                 for key in F_sum:
-                    F_sum[key] += getattr(ef, key)
+                    F_sum[key] += getattr(ef, key) if getattr(ef, key) is not None else 0.0
                 F_el = ef.resultant
                 w_tot += np.linalg.norm(F_el)
                 r_app += np.linalg.norm(F_el) * st.r_W

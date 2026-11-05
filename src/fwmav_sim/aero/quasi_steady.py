@@ -63,6 +63,7 @@ class QuasiSteadyBladeElement(AerodynamicModel):
     def __init__(self, spec: AeroModelSpec):
         if spec.name != "quasi_steady_blade_element":
             raise ValueError(f"unknown aero model {spec.name!r}")
+        self._spec = spec
         from fwmav_sim.aero.registry import resolve_coefficients
 
         coefficients, set_info = resolve_coefficients(spec)
@@ -137,4 +138,23 @@ class QuasiSteadyBladeElement(AerodynamicModel):
         gamma_rot = np.pi * state.chord**2 * state.pitch_rate * (0.75 - state.pitch_axis_fraction)
         F_rot = env.rho * speed * gamma_rot * dr * e_L
 
-        return ElementForces(F_trans=F_trans, F_rot=F_rot, F_am=F_am)
+        # optional reduced-order unsteady terms (M6 Task 7, off by default)
+        F_unsteady = None
+        unsteady = getattr(self._spec, "unsteady", None)
+        if unsteady and state.aux is not None:
+            from fwmav_sim.aero.unsteady import clap_fling_force, wake_capture_force
+
+            F_unsteady = np.zeros(3)
+            if "wake_capture" in unsteady:
+                F_unsteady = F_unsteady + wake_capture_force(
+                    state.aux["wing"], state, state.aux["kin"], state.t, e_L,
+                    env.rho, unsteady["wake_capture"])
+            if "clap_fling" in unsteady and state.aux.get("mirror_tip_W") is not None:
+                F_unsteady = F_unsteady + clap_fling_force(
+                    state.aux["wing"], state, state.aux["kin"], state.t, e_L,
+                    env.rho, unsteady["clap_fling"],
+                    mirror_tip_W=state.aux["mirror_tip_W"],
+                    own_tip_W=state.aux["own_tip_W"])
+
+        return ElementForces(F_trans=F_trans, F_rot=F_rot, F_am=F_am,
+                             F_unsteady=F_unsteady)

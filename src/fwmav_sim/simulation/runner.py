@@ -89,7 +89,8 @@ def run_free_body(
         for w in wings:
             rec = plant.last_F_wings.get(w)
             if rec:
-                F_terms[w][i] = rec["F_trans"] + rec["F_rot"] + rec["F_am"]
+                F_terms[w][i] = (rec["F_trans"] + rec["F_rot"] + rec["F_am"]
+                                 + rec.get("F_unsteady", 0.0))
                 lever[w][i] = rec["r_app_W"] - com[i]
             if has_wing_inertia:
                 F_inertia[w][i] = plant.last_F_wing_inertia.get(w, np.zeros(3))
