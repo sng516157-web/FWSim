@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
+
 try:
     from PySide6.QtCore import Qt, QTimer, QUrl
     from PySide6.QtWidgets import (
@@ -191,6 +193,19 @@ class Scene3DPanel(QWidget if _HAVE_QT else object):
     def _slider_released(self) -> None:
         self._frame = float(self.frame_slider.value())
         self._render_frame(int(self._frame))
+
+    def seek_time(self, t: float) -> None:
+        """Scrub the 3D view to the record time t (cursor linkage, M6 T3)."""
+        if self._replay is None:
+            return
+        if self._replay[0] == "free_body":
+            _, ctx, n = self._replay
+            i = int(np.argmin(np.abs(ctx.ts.t - t)))
+        else:
+            _, _, period, _, _, frames_per_beat = self._replay
+            i = int((t % period) / period * frames_per_beat)
+        self._frame = float(i)
+        self._render_frame(i)
 
     def _n_frames(self) -> int:
         return self._replay[2] if self._replay[0] == "free_body" else self._replay[5]

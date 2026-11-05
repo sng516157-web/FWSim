@@ -199,12 +199,18 @@ class BladeElementSpec(BaseModel):
 
 
 class AeroModelSpec(BaseModel):
-    """Aerodynamic model selection and its coefficient set with provenance."""
+    """Aerodynamic model selection and its coefficient set with provenance.
+
+    Coefficients come from exactly one of: inline ``coefficients`` (M1-M5
+    style), or ``coefficient_set`` naming a registry entry (M6,
+    aero/registry.py) — resolution enforces the exclusivity.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)  # e.g. "quasi_steady_blade_element"
     coefficients: dict[str, Parameter] = Field(default_factory=dict)
+    coefficient_set: str | None = None  # registry name (aero/registry.py)
 
 
 class AbdomenAeroSpec(BaseModel):

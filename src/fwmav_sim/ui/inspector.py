@@ -80,6 +80,22 @@ class InspectorPanel(QWidget if _HAVE_QT else object):
         self._index[id(aero)] = ("aero", None)
         self.tree.expandAll()
 
+    def set_experiment(self, exp) -> None:
+        """Add an experiment section: kinematics (and per-wing variants) become
+        editable nodes alongside the vehicle tree (M6 Task 4)."""
+        root = self.model.invisibleRootItem()
+        kin = QStandardItem("experiment: kinematics")
+        kmap = (exp.kinematics if isinstance(exp.kinematics, dict)
+                else {"(all wings)": exp.kinematics})
+        for wing_name, k in kmap.items():
+            if k is None:
+                continue
+            node = QStandardItem(f"kinematics: {wing_name}")
+            kin.appendRow([node, QStandardItem("")])
+            self._index[id(node)] = ("kinematics", wing_name)
+        root.appendRow([kin, QStandardItem("")])
+        self.tree.expandAll()
+
     def _selected(self, current, _previous):
         node = self.model.itemFromIndex(current)
         key = self._index.get(id(node))

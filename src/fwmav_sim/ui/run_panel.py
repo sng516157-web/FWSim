@@ -47,11 +47,12 @@ class RunWorker(QThread if _HAVE_QT else object):
 class RunPanel(QWidget if _HAVE_QT else object):
     """Experiment picker + run button + status."""
 
-    def __init__(self, experiments_dir: Path, on_record_ready, parent=None):
+    def __init__(self, experiments_dir: Path, on_record_ready, on_failure=None, parent=None):
         if not _HAVE_QT:
             raise ImportError("PySide6 required for the run panel")
         super().__init__(parent)
         self._on_record_ready = on_record_ready
+        self._on_failure = on_failure  # optional: console/modal surfacing (M6)
         self._worker: RunWorker | None = None
 
         layout = QVBoxLayout(self)
@@ -106,3 +107,5 @@ class RunPanel(QWidget if _HAVE_QT else object):
         self.run_button.setEnabled(True)
         self.progress.hide()
         self.status.setText(f"FAILED: {message}")
+        if self._on_failure is not None:
+            self._on_failure(message)

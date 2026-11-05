@@ -63,10 +63,18 @@ class QuasiSteadyBladeElement(AerodynamicModel):
     def __init__(self, spec: AeroModelSpec):
         if spec.name != "quasi_steady_blade_element":
             raise ValueError(f"unknown aero model {spec.name!r}")
-        missing = [k for k in REQUIRED_COEFFICIENTS if k not in spec.coefficients]
-        if missing:
-            raise ValueError(f"aero coefficients missing from YAML: {missing}")
-        self._c = {k: p.value for k, p in spec.coefficients.items()}
+        from fwmav_sim.aero.registry import resolve_coefficients
+
+        coefficients, set_info = resolve_coefficients(spec)
+        self._form = set_info["form"] if set_info else "dickinson1999"
+        if self._form == "dickinson1999":
+            missing = [k for k in REQUIRED_COEFFICIENTS if k not in coefficients]
+            if missing:
+                raise ValueError(f"aero coefficients missing from YAML: {missing}")
+        self._c = {k: p.value for k, p in coefficients.items()}
+        #: registry metadata when the vehicle named a coefficient set (M6);
+        #: None for inline coefficients
+        self.set_info = set_info
 
     def cl_cd(self, alpha_rad: float) -> tuple[float, float]:
         """C_L (signed), C_D from the Dickinson 1999 fits.
@@ -86,6 +94,10 @@ class QuasiSteadyBladeElement(AerodynamicModel):
         a = abs(a_deg)
         if a > 90.0:
             a = 180.0 - a
+        if self._form == "poststall_classical":
+            # classical post-stall flat plate (registry; exact evaluation)
+            ar = np.radians(a)
+            return sign * c["cn"] * np.sin(ar) ** 2 * np.cos(ar), c["cn"] * np.sin(ar) ** 3
         cl = c["cl_0"] + c["cl_slope"] * np.sin(np.radians(c["cl_freq"] * a - c["cl_phase_deg"]))
         cd = c["cd_0"] - c["cd_slope"] * np.cos(np.radians(c["cd_freq"] * a - c["cd_phase_deg"]))
         return sign * cl, cd

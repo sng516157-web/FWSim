@@ -55,15 +55,24 @@ def _run_fixed_body(exp, experiment_path):
     re_range = {w.name: {"min": float(ts[f"{w.name}/reynolds"].min()),
                          "max": float(ts[f"{w.name}/reynolds"].max())}
                 for w in vehicle.wings}
+    coef_note = (
+        f"aero coefficients: registry set '{vehicle.aero.coefficient_set}' "
+        f"(regime: {model.set_info['regime']})"
+        if model.set_info else
+        "aero coefficients: inline from the vehicle YAML (Dickinson 1999 Robofly "
+        "fits unless edited); validity for this vehicle unverified without data.")
     extra_meta = {
         "experiment_file": str(experiment_path),
         "vehicle_file": str(vehicle_path),
         "reynolds_range": re_range,
         "validity": {
             "assumption_ids": ts.meta["assumptions"],
+            "aero_coefficients": ({"set": vehicle.aero.coefficient_set,
+                                   "regime": model.set_info["regime"],
+                                   "reference": model.set_info["reference"]}
+                                  if model.set_info else "inline"),
             "warnings": [
-                "Quasi-steady coefficients (Dickinson et al. 1999) are Robofly-regime fits; "
-                "their validity for this vehicle is unverified without experimental data.",
+                coef_note,
                 "Wake capture, clap-and-fling and wing deformation are excluded (A-002, A-005).",
             ],
         },

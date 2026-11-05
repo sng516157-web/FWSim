@@ -39,12 +39,16 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         self._vehicle = None
         self._record_dir: Path | None = None
 
+        from fwmav_sim.ui.console import ConsolePanel
         from fwmav_sim.ui.inspector import InspectorPanel
         from fwmav_sim.ui.parameter_editor import ParameterEditor
         from fwmav_sim.ui.run_panel import RunPanel
         from fwmav_sim.ui.scene3d import Scene3DPanel
         from fwmav_sim.ui.timeseries import TimeSeriesPanel
         from fwmav_sim.ui.validity_panel import ValidityPanel
+
+        self.console = ConsolePanel()
+        self.console.install_global_hooks()
 
         # centre: 3D over time-series tabs
         self.scene3d = Scene3DPanel()
@@ -53,19 +57,26 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         centre.addTab(self.scene3d, "3D")
         centre.addTab(self.timeseries, "time series")
         self.setCentralWidget(centre)
+        # scope cursor scrubs the 3D frame (M6 Task 3)
+        self.timeseries.cursor_moved.connect(self.scene3d.seek_time)
 
-        # left dock: inspector + editor
+        # left dock: inspector + editor + records browser (M6 T5)
+        from fwmav_sim.ui.records import RecordsPanel
+
         self.inspector = InspectorPanel(self._on_inspector_select)
         self.editor = ParameterEditor(self._on_param_change)
+        self.records = RecordsPanel(Path("outputs"), self._on_record, self._on_compare_record)
         left = QTabWidget()
         left.addTab(self.inspector, "inspector")
         left.addTab(self.editor, "parameters")
+        left.addTab(self.records, "records")
         dock_l = QDockWidget("vehicle", self)
         dock_l.setWidget(left)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock_l)
 
         # right dock: run control + validity
-        self.run_panel = RunPanel(experiments_dir or Path("experiments"), self._on_record)
+        self.run_panel = RunPanel(experiments_dir or Path("experiments"), self._on_record,
+                                  on_failure=self._on_run_failure)
         self.validity = ValidityPanel()
         right = QVBoxLayout()
         right.addWidget(self.run_panel)
@@ -75,6 +86,11 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         dock_r = QDockWidget("run / validity", self)
         dock_r.setWidget(right_w)
         self.addDockWidget(Qt.RightDockWidgetArea, dock_r)
+
+        # bottom dock: console (M6 Task 1 — failures must be visible)
+        dock_b = QDockWidget("console", self)
+        dock_b.setWidget(self.console)
+        self.addDockWidget(Qt.BottomDockWidgetArea, dock_b)
 
         # menu
         menu = self.menuBar().addMenu("file")
@@ -86,6 +102,21 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
             ("quit", self.close),
         ):
             menu.addAction(label, slot)
+
+        # workflow ribbon (M6 Task 2): the golden path as a toolstrip
+        from fwmav_sim.ui.workflow import WorkflowRibbon
+
+        self.ribbon = WorkflowRibbon({
+            "load": self._open_experiment,
+            "inspect": dock_l.show,
+            "run": dock_r.show,
+            "results": lambda: centre.setCurrentWidget(self.timeseries),
+            "validity": dock_r.show,
+        })
+        ribbon_bar = self.addToolBar("workflow")
+        ribbon_bar.setMovable(False)
+        ribbon_bar.addWidget(self.ribbon)
+
         self.statusBar().showMessage("open an experiment to begin (file → open experiment…)")
 
     # --- workflow wiring (brief §9) -------------------------------------------
@@ -99,20 +130,34 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
     def load_experiment(self, path: Path) -> None:
         """Steps 1-3: select + inspect + configure; also preview in 3D."""
         exp = load_experiment(path)
+        self._experiment = exp
         self._experiment_path = path
         if exp.vehicle:
             self._vehicle = load_vehicle(path.parent / exp.vehicle)
             self.inspector.set_vehicle(self._vehicle)
+            if exp.kinematics is not None:
+                self.inspector.set_experiment(exp)
         if exp.kind in ("fixed_body", "free_body") and exp.kinematics is not None:
             self.scene3d.set_experiment(path)
         self.run_panel.status.setText(f"loaded: {exp.name}")
+        self.console.log("info", f"experiment loaded: {exp.name} ({exp.kind}) — {path}")
+        self.ribbon.set_stage("inspect")
         self.statusBar().showMessage(f"experiment: {exp.name} ({exp.kind})")
+
+    def _on_run_failure(self, message: str):
+        self.console.report_failure("run failed", message)
 
     def _on_inspector_select(self, key):
         """Inspector selection drives the parameter editor."""
+        kind, name = key
+        if kind == "kinematics":
+            kin = self._experiment.kinematics
+            target = kin if not isinstance(kin, dict) else kin.get(name)
+            if target is not None:
+                self.editor.set_target(target)
+            return
         if self._vehicle is None:
             return
-        kind, name = key
         if kind == "body":
             self.editor.set_target(next(b for b in self._vehicle.bodies if b.name == name))
         elif kind == "wing":
@@ -141,7 +186,22 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         self.timeseries.set_record(ts)
         self.validity.show_record(record_dir)
         self.scene3d.set_record(record_dir)
+        self.console.log("info", f"record opened: {record_dir.name}")
+        self.ribbon.set_stage("results")
+        self.records.refresh()
         self.statusBar().showMessage(f"record: {record_dir.name}")
+
+    def _on_compare_record(self, record_dir: Path):
+        """Overlay another record on the scope (M6 Task 5)."""
+        if self._record_dir is None:
+            self.statusBar().showMessage("open a record first, then compare")
+            return
+        from fwmav_sim.experiment.record import load_record
+
+        ts2, _ = load_record(record_dir)
+        self.timeseries.set_overlay(ts2, Path(record_dir).name[:15])
+        self.console.log("info", f"comparing: {self._record_dir.name} vs {Path(record_dir).name}")
+        self.ribbon.set_stage("results")
 
     def _open_record(self):
         path = QFileDialog.getExistingDirectory(self, "open run record", "outputs")
