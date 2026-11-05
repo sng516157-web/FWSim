@@ -167,8 +167,12 @@ class ReducedAnalyticalModel:
         tau_act: float = 0.0,
         alpha_profile: AbdomenProfile | None = None,
         alpha_limits: tuple[float, float] | None = None,
+        q_extra: np.ndarray | None = None,
     ) -> np.ndarray:
-        """xdot = [qd, qdd] for the 8-state; see module docstring for modes."""
+        """xdot = [qd, qdd] for the 8-state; see module docstring for modes.
+
+        q_extra: optional additive generalized force (e.g. cycle-averaged
+        aerodynamic body damping, dynamics/aero_damping.py, M6)."""
         p = self.p
         q = np.asarray(state[:4], dtype=float)
         qd = np.asarray(state[4:], dtype=float)
@@ -184,6 +188,8 @@ class ReducedAnalyticalModel:
         Q += np.array([-p.c_lin * qd[0], -p.c_lin * qd[1],
                        -p.c_ang * qd[2], -p.c_a * qd[3]])
         Q[3] += tau_act
+        if q_extra is not None:
+            Q = Q + np.asarray(q_extra, dtype=float)
 
         qdd = np.zeros(4)
         if alpha_profile is not None:

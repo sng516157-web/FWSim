@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to FlapSim, newest first. The project follows the
+All notable changes to FWSim, newest first. The project follows the
 milestone structure of `FWMAV_Milestone_Action_Plan.md`; post-roadmap items
 are numbered P1+; M6 is the usability/fidelity milestone.
 

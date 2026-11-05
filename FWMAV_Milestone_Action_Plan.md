@@ -70,7 +70,7 @@ No CFD, no FSI, no flexible-wing predictive aero, no MATLAB interpreter, no bloc
 ## 2. Repository Layout
 
 ```text
-FlapSim/
+FWSim/
 ├── pyproject.toml                 # name: fwmav-sim, console script: fwmav-sim
 ├── README.md
 ├── docs/
@@ -361,11 +361,11 @@ External code reviewed for reuse, with an explicit verdict per project. Nothing 
 
 2D flapping-wing MAV + REINFORCE controller (PyTorch/pygame, MIT license). Local reference copies: `reference_rl_README.md`, `reference_rl_flapping.py`.
 
-**Not reusable — the plant.** Thrust linear in frequency (`T = k·f`; the repo's own README flags `T ∝ f²` as the needed fix), Euler integration, and a sinusoidal-plus-Gaussian "flutter" torque standing in for physics would violate brief §3.3 (averaged forces must derive from time-resolved runs), §5.7 (established integrators), and §8.2/§14.5 (no hard-coded plausible behaviour as dynamics). No line of its `flapper_step` migrates into FlapSim. Retained value here: a documented anti-pattern for the assumption/validity panel — what a cycle-averaged, no-blade-element toy model looks like.
+**Not reusable — the plant.** Thrust linear in frequency (`T = k·f`; the repo's own README flags `T ∝ f²` as the needed fix), Euler integration, and a sinusoidal-plus-Gaussian "flutter" torque standing in for physics would violate brief §3.3 (averaged forces must derive from time-resolved runs), §5.7 (established integrators), and §8.2/§14.5 (no hard-coded plausible behaviour as dynamics). No line of its `flapper_step` migrates into FWSim. Retained value here: a documented anti-pattern for the assumption/validity panel — what a cycle-averaged, no-blade-element toy model looks like.
 
 **Reusable — four items, all deferred to the P1 "controller interface and strategy comparison" work (after M3/M4):**
 
-1. **Controller-interface template.** Its gym-style environment (error-based observation, normalized actions in [-1,1]², gain+clamp mapping to physical control variables) is the pattern for FlapSim's `Controller` interface (brief §8). Its HUD metrics (tracking error, action effort, frequency² effort) map almost one-to-one onto brief §7's common metrics.
+1. **Controller-interface template.** Its gym-style environment (error-based observation, normalized actions in [-1,1]², gain+clamp mapping to physical control variables) is the pattern for FWSim's `Controller` interface (brief §8). Its HUD metrics (tracking error, action effort, frequency² effort) map almost one-to-one onto brief §7's common metrics.
 2. **RL as a compared control strategy.** Once the M3 articulated plant exists, train PPO (not REINFORCE — known high variance) against it, especially for abdomen/CoG-shift control where PID gain structure is non-obvious. Target library when the time comes: stable-baselines3 — to be pinned via the §5 dependency protocol then, not now.
 3. **M2 validation foil.** With noise disabled and parameters mapped, the M2 reduced analytical model (brief §6.5 Level 1) should reproduce the sandbox's qualitative behaviour — hover equilibrium `f_hover = mg/(2k)`, differential-frequency attitude response. Cheap integration test, worth wiring when M2 lands.
 4. **Benchmark-task design.** Its moveable setpoint and automatic oval routine are better controller-comparison tasks than step responses alone; adopt into the P1 comparison harness.

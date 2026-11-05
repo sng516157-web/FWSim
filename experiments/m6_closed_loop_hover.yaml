@@ -6,6 +6,23 @@ name: m6_closed_loop_hover
 kind: closed_loop_reduced
 vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
 
+# kinematics + environment are required for the cycle-averaged aerodynamic
+# body damping (flapping counter-torque; without it the hover trim is
+# open-loop unstable and the demo diverges — M6 report §3). Must match the
+# conditions of the forces_record (m1_fixed_body_hover).
+kinematics:
+  flap_amplitude: {value: 1.0472, unit: rad, provenance: {source: estimated, uncertainty_or_range: "60 deg placeholder"}}
+  flap_frequency: {value: 15.0, unit: Hz, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  pitch_amplitude: {value: 0.7854, unit: rad, provenance: {source: estimated, uncertainty_or_range: "45 deg placeholder"}}
+  pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg phasing"}}
+  pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+
+environment:
+  air_density: {value: 1.225, unit: kg/m^3, provenance: {source: literature, reference: "ISA sea level"}}
+  kinematic_viscosity: {value: 1.460e-5, unit: m^2/s, provenance: {source: literature, reference: "ISA sea level"}}
+  wind: {value: [0.0, 0.0, 0.0], unit: m/s, provenance: {source: estimated, uncertainty_or_range: "still air"}}
+
 closed_loop:
   forces_record: ../derivations/m6_hover_avg_forces.json
   q_diag: [1.0, 10.0, 50.0, 5.0, 1.0, 1.0, 5.0, 1.0]

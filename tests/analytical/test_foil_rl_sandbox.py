@@ -54,7 +54,7 @@ def _flapsim_accel(x_fs, z_fs, th_fs, vx, vz, om_fs, base_f, delta):
 
 
 def test_foil_rhs_equivalence():
-    """100 random states/inputs: FlapSim accelerations == sandbox closed form
+    """100 random states/inputs: FWSim accelerations == sandbox closed form
     under the verified mapping, to < 1e-12."""
     rng = np.random.default_rng(17)
     for _ in range(100):

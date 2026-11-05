@@ -295,19 +295,34 @@ def _run_closed_loop(exp, experiment_path):
         x_Ts.append(wing.hinge_location.value[0])
     r_T = (float(np.mean(x_Ts)) if x_Ts else 0.0, 0.0)
     trim = solve_trim((float(F_avg[0]), float(F_avg[2])), r_T, params)
+    # cycle-averaged aerodynamic body damping (flapping counter-torque +
+    # heave damping; dynamics/aero_damping.py) — required for a stabilizable
+    # hover demo (M6 report §3); needs kinematics + environment in the YAML
+    damping_D = None
+    damp_note = "no aerodynamic damping (kinematics/environment absent): demo may diverge"
+    if exp.kinematics is not None and exp.environment is not None:
+        from fwmav_sim.dynamics.aero_damping import body_motion_damping, damping_matrix
+        from fwmav_sim.environment.spec import environment_from_spec
+        from fwmav_sim.experiment.config import kinematics_map
+
+        d = body_motion_damping(vehicle, kinematics_map(exp, vehicle),
+                                environment_from_spec(exp.environment))
+        damping_D = damping_matrix(d)
+        damp_note = f"aerodynamic body damping included: {d}"
     cl = exp.closed_loop
     result = run_closed_loop(
         params, trim, trim.r_T_trim,
         Q=np.diag(cl.q_diag), R=np.diag(cl.r_diag),
         x0=np.asarray(cl.initial_perturbation, float),
-        t_end=exp.solver.max_time, rtol=exp.solver.rtol, atol=exp.solver.atol)
+        t_end=exp.solver.max_time, rtol=exp.solver.rtol, atol=exp.solver.atol,
+        damping_D=damping_D, du_limits=(0.5, 2e-3))
     extra_meta = {
         "experiment_file": str(experiment_path),
         "vehicle_file": str(vehicle_path),
         "status": "OK",
         "trim": {"thrust_scale": trim.thrust_scale, "alpha_abd_trim": trim.alpha_abd_trim,
                  "tau_act_trim": trim.tau_act_trim, "x_T_shift": trim.x_T_shift,
-                 "r_T_trim": list(trim.r_T_trim),
+                 "theta_trim": trim.theta_trim, "r_T_trim": list(trim.r_T_trim),
                  "residual": [float(r) for r in trim.residual]},
         "lqr_gain": result.K.tolist(),
         "validity": {
@@ -315,6 +330,7 @@ def _run_closed_loop(exp, experiment_path):
             "warnings": [
                 "Design-loop demo on the Level-1 reduced model (cycle-averaged "
                 "forces, A-007); NOT a flight-ready autopilot.",
+                damp_note,
                 *w,
             ],
         },

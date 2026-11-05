@@ -89,24 +89,24 @@ The reduced model consumes wingbeat-averaged forces **derived from an M1 time-re
 - Unsteady/noise torque terms **disabled** (`unsteady_rel_amp = 0`, `unsteady_noise_scale = 0`); documented in the run record.
 - Damping included: `lin_damp = 0.05 N·s/m`, `ang_damp = 0.001 N·m·s/rad`. **Requirement this imposes on Tasks 3–4:** the reduced model spec and EOM must carry optional linear/angular damping slots.
 
-**Parameter mapping (sandbox `PARAMS` → FlapSim schema):**
+**Parameter mapping (sandbox `PARAMS` → FWSim schema):**
 
-| Sandbox | Value | FlapSim target |
+| Sandbox | Value | FWSim target |
 |---|---|---|
 | `m` | 0.05 kg | thorax `BodySpec.mass` (abdomen mass 0, locked) |
 | `I` | 2e-4 kg·m² | thorax pitch inertia `I_yy` about CoM |
 | `arm` | 0.1 m | thrust application points `x = ±0.1 m` |
 | `k_thrust` | 0.02 N/Hz | synthetic averaged-force table coefficient |
 | `lin_damp` / `ang_damp` | 0.05 / 0.001 | reduced-model damping slots |
-| `dt = 0.02`, Euler | — | **not replicated** — FlapSim keeps its own solver; comparison tolerance accounts for it |
+| `dt = 0.02`, Euler | — | **not replicated** — FWSim keeps its own solver; comparison tolerance accounts for it |
 
-**Frame mapping (verify by test, do not assume):** sandbox world `(x, y-up)` ↔ FlapSim `(x, −z)`; sandbox `θ` (0 = body-up, positive tilts body-up toward +x) ≡ FlapSim pitch θ (0 = level, positive nose-up); sandbox thrust `(T sinθ, T cosθ) − gravity` ↔ FlapSim `F_x = T sinθ`, `F_z = mg − T cosθ`; `τ = arm·(T_R − T_L)` ↔ pitch moment `M_y = arm·(T_front − T_back)` with `T_R ↔ T_front` — confirm sign via the mirror/reversal convention tests before trusting the foil.
+**Frame mapping (verify by test, do not assume):** sandbox world `(x, y-up)` ↔ FWSim `(x, −z)`; sandbox `θ` (0 = body-up, positive tilts body-up toward +x) ≡ FWSim pitch θ (0 = level, positive nose-up); sandbox thrust `(T sinθ, T cosθ) − gravity` ↔ FWSim `F_x = T sinθ`, `F_z = mg − T cosθ`; `τ = arm·(T_R − T_L)` ↔ pitch moment `M_y = arm·(T_front − T_back)` with `T_R ↔ T_front` — confirm sign via the mirror/reversal convention tests before trusting the foil.
 
 **Tests and pass criteria:**
 
-1. `test_foil_rhs_equivalence` — at 100 random states/inputs, FlapSim reduced-model accelerations match the sandbox's closed-form dynamics to `< 1e-12` (sandbox dynamics are analytic; compute expectations by hand formula, not by running sandbox code).
+1. `test_foil_rhs_equivalence` — at 100 random states/inputs, FWSim reduced-model accelerations match the sandbox's closed-form dynamics to `< 1e-12` (sandbox dynamics are analytic; compute expectations by hand formula, not by running sandbox code).
 2. `test_foil_hover_equilibrium` — at `base_f = m·g/(2·k_thrust) = 12.2625 Hz`, `freq_delta = 0`, zero perturbation: equilibrium held to solver tolerance over 10 s.
-3. `test_foil_pitch_response` — small perturbation `θ₀ = 0.05 rad`, no control: FlapSim trajectory matches the linearized analytical prediction of the *sandbox* equations to `< 1e-6` relative over 2 s. (Compare against the closed-form linearization, not the sandbox's Euler trajectory — Euler at dt = 0.02 is itself an approximation.)
+3. `test_foil_pitch_response` — small perturbation `θ₀ = 0.05 rad`, no control: FWSim trajectory matches the linearized analytical prediction of the *sandbox* equations to `< 1e-6` relative over 2 s. (Compare against the closed-form linearization, not the sandbox's Euler trajectory — Euler at dt = 0.02 is itself an approximation.)
 
 Report foil results in the M2 milestone report with the caveat that this is a kernel cross-check against a toy model, not physical validation.
 

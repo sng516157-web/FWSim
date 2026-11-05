@@ -28,13 +28,13 @@ from fwmav_sim.experiment.config import load_experiment, load_vehicle
 
 
 class MainWindow(QMainWindow if _HAVE_QT else object):
-    """FlapSim workbench shell."""
+    """FWSim workbench shell."""
 
     def __init__(self, experiments_dir: Path | None = None):
         if not _HAVE_QT:
             raise ImportError("PySide6 required for the workbench")
         super().__init__()
-        self.setWindowTitle("FlapSim — FWMAV Workbench")
+        self.setWindowTitle("FWSim — FWMAV Workbench")
         self._experiment_path: Path | None = None
         self._vehicle = None
         self._record_dir: Path | None = None

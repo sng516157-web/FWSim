@@ -1,4 +1,4 @@
-# FlapSim — FWMAV Simulation and Control Workbench
+# FWSim — FWMAV Simulation and Control Workbench
 
 A configurable flapping-wing micro aerial vehicle (FWMAV) flight-dynamics and
 control workbench, with first-class support for morphing-body control mechanisms

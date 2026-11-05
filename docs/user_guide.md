@@ -1,4 +1,4 @@
-# FlapSim User Guide
+# FWSim User Guide
 
 A 10-minute path from install to a hover force record, plus the four concepts
 the whole tool is built around.

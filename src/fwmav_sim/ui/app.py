@@ -29,7 +29,7 @@ def main() -> int:
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 
     app = QApplication(sys.argv[:1])
-    app.setApplicationName("FlapSim — FWMAV Workbench")
+    app.setApplicationName("FWSim — FWMAV Workbench")
 
     from fwmav_sim.ui.main_window import MainWindow
 
