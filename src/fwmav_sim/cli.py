@@ -100,7 +100,10 @@ def main() -> int:
     p_fit.add_argument("-o", "--out", type=Path, required=True,
                        help="output vehicle-fragment YAML (provenance: fitted)")
 
-    sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
+    p_gui = sub.add_parser("gui", help="launch the PySide6 workbench (requires fwmav-sim[gui])")
+    p_gui.add_argument("--legacy", action="store_true",
+                       help="launch the M5-M8 batch-oriented window instead of the "
+                            "M9 live-first workbench")
 
     p_bench = sub.add_parser("benchmark",
                              help="time experiment runs (speed vs fidelity, M6.75)")
@@ -206,7 +209,7 @@ def main() -> int:
     if args.command == "gui":
         from fwmav_sim.ui.app import main as gui_main
 
-        return gui_main()
+        return gui_main(legacy=args.legacy)
 
     if args.command == "benchmark":
         from fwmav_sim.analysis.benchmark import format_table, run_benchmark

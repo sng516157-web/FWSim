@@ -45,11 +45,28 @@ def chord_at(wing: WingSpec, s: float) -> float:
         return c_r + (c_t - c_r) * u
     if wing.planform == "elliptical":
         return c_r * np.sqrt(max(1.0 - u * u, 0.0))
+    if wing.planform == "custom":
+        st = wing.planform_stations
+        return float(np.interp(s, [p.y for p in st], [p.chord for p in st]))
     raise ValueError(f"unknown planform {wing.planform!r}")
 
 
+def le_offset_at(wing: WingSpec, s: float) -> float:
+    """Leading-edge x position (x_WR, toward LE) at station s. Zero for the
+    analytic planforms (they are unswept); interpolated from the stations
+    for custom. For custom planforms the pitch axis is the straight x=0 line:
+    le_offset carries the sweep AND the spar position (pitch_axis_fraction
+    is ignored — set it implicitly via le_offset = f * chord for an unswept
+    outline)."""
+    if wing.planform == "custom":
+        st = wing.planform_stations
+        return float(np.interp(s, [p.y for p in st], [p.le_offset for p in st]))
+    return wing.pitch_axis_fraction.value * chord_at(wing, s)
+
+
 def cumulative_area(wing: WingSpec, s: float) -> float:
-    """Planform area between the root and span station s (analytic)."""
+    """Planform area between the root and span station s (analytic; exact
+    trapezoids for the piecewise-linear custom outline)."""
     R = wing.span.value
     c_r, c_t = wing.root_chord.value, wing.tip_chord.value
     u = np.clip(s / R, 0.0, 1.0)
@@ -59,6 +76,20 @@ def cumulative_area(wing: WingSpec, s: float) -> float:
         return R * (c_r * u + 0.5 * (c_t - c_r) * u * u)
     if wing.planform == "elliptical":
         return 0.5 * c_r * R * (u * np.sqrt(max(1.0 - u * u, 0.0)) + np.arcsin(u))
+    if wing.planform == "custom":
+        st = wing.planform_stations
+        s = min(max(s, 0.0), R)
+        area = 0.0
+        for a, b in zip(st, st[1:]):
+            if s <= a.y:
+                break
+            hi = min(s, b.y)
+            frac = (hi - a.y) / (b.y - a.y)
+            c_hi = a.chord + frac * (b.chord - a.chord)
+            area += 0.5 * (a.chord + c_hi) * (hi - a.y)
+            if s <= b.y:
+                break
+        return area
     raise ValueError(f"unknown planform {wing.planform!r}")
 
 
@@ -102,8 +133,15 @@ def discretize(
     for a, b in zip(edges[:-1], edges[1:], strict=True):
         area = cumulative_area(wing, b) - cumulative_area(wing, a)
         chord = area / (b - a)
-        x_c = (wing.pitch_axis_fraction.value - 0.5) * chord
-        elements.append(BladeElement(s=0.5 * (a + b), chord=chord, area=area, x_c=x_c))
+        s_mid = 0.5 * (a + b)
+        # element centre (mid-chord) x in WR. Legacy form for the analytic
+        # planforms (area-equivalent chord, unchanged numerics); for custom
+        # outlines the le_offset carries sweep + spar position.
+        if wing.planform == "custom":
+            x_c = le_offset_at(wing, s_mid) - 0.5 * chord
+        else:
+            x_c = (wing.pitch_axis_fraction.value - 0.5) * chord
+        elements.append(BladeElement(s=s_mid, chord=chord, area=area, x_c=x_c))
     return elements
 
 

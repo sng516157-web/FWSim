@@ -29,6 +29,7 @@ dev = [
 gui = [
     "PySide6>=6.6",
     "pyqtgraph>=0.13",
+    "PyOpenGL>=3.1",  # M9 T5: Qt-native GL scene (viz/gl_scene.py)
 ]
 
 [project.scripts]

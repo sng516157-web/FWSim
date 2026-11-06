@@ -76,6 +76,37 @@ def _planform_integrals(wing: WingSpec) -> tuple[float, float, float, float, flo
     raise ValueError(f"unknown planform {wing.planform!r}")
 
 
+def _custom_planform_integrals(wing: WingSpec):
+    """Mass-property integrals for a custom (station-defined, possibly swept)
+    outline, by Gauss quadrature over the station panels.
+
+    Returns (i_c1, i_sc, i_s2c, i_c3, i_xc, i_x2c, i_sxc) — integrals over the
+    span of c, s·c, s²·c, c³, x·c, x²·c, s·x·c, where x(s) = le_offset(s) −
+    c(s)/2 is the mid-chord (element-centre) line. The plate's own chordwise
+    inertia adds c²/12 per unit length (the i_c3 term)."""
+    from fwmav_sim.kinematics.blade_element import chord_at, le_offset_at
+
+    st = wing.planform_stations
+    # 8-point Gauss-Legendre per panel: exact for polynomials up to degree 15
+    # (c is linear per panel; the integrands are at most degree 5)
+    gx, gw = np.polynomial.legendre.leggauss(8)
+    i_c1 = i_sc = i_s2c = i_c3 = i_xc = i_x2c = i_sxc = 0.0
+    for a, b in zip(st, st[1:]):
+        half, mid = 0.5 * (b.y - a.y), 0.5 * (a.y + b.y)
+        s_pts = mid + half * gx
+        for s, w in zip(s_pts, gw * half, strict=True):
+            c = chord_at(wing, s)
+            x = le_offset_at(wing, s) - 0.5 * c
+            i_c1 += w * c
+            i_sc += w * s * c
+            i_s2c += w * s * s * c
+            i_c3 += w * c**3
+            i_xc += w * x * c
+            i_x2c += w * x * x * c
+            i_sxc += w * s * x * c
+    return i_c1, i_sc, i_s2c, i_c3, i_xc, i_x2c, i_sxc
+
+
 @dataclass(frozen=True)
 class WingMassProperties:
     """Thin-flat-plate mass properties of one wing (uniform areal density).
@@ -95,9 +126,28 @@ def wing_mass_properties(wing: WingSpec) -> WingMassProperties | None:
     if wing.mass is None:
         return None
     m = wing.mass.value
+    f_pa = wing.pitch_axis_fraction.value
+
+    if wing.planform == "custom":
+        # swept/tapered outline: x(s) varies along the span, so the CoM and
+        # inertia need the x-weighted integrals directly (the f_pa shortcut
+        # assumes x_c = (f_pa - 1/2) c, which sweep breaks)
+        i_c1, i_sc, i_s2c, i_c3, i_xc, i_x2c, i_sxc = _custom_planform_integrals(wing)
+        rho_a = m / i_c1
+        s_com = i_sc / i_c1
+        x_com = i_xc / i_c1
+        i_xx = rho_a * (i_s2c - i_c1 * s_com**2)
+        i_yy = rho_a * (i_x2c + i_c3 / 12.0) - m * x_com**2
+        i_zz = i_xx + i_yy
+        i_xy = m * x_com * s_com - rho_a * i_sxc
+        return WingMassProperties(
+            mass=m,
+            r_com_WR=np.array([x_com, s_com, 0.0]),
+            I_com_WR=np.array([[i_xx, i_xy, 0.0], [i_xy, i_yy, 0.0], [0.0, 0.0, i_zz]]),
+        )
+
     i_c1, i_sc, i_s2c, i_c2, i_c3, i_sc2 = _planform_integrals(wing)
     rho_a = m / i_c1  # areal density, kg / m^2
-    f_pa = wing.pitch_axis_fraction.value
 
     s_com = i_sc / i_c1
     x_com = (f_pa - 0.5) * i_c2 / i_c1  # element x_c = (f_pa - 0.5) * c(s)

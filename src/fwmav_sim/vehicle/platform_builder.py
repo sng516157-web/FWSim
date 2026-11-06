@@ -83,6 +83,60 @@ class PlatformBuilder:
                           "kg m^2", prov),
         })
 
+    def add_body_primitive(self, name: str, shape: Literal["box", "cylinder", "point"],
+                           dimensions: dict, density: float | None = None,
+                           mass: float | None = None, com_offset=(0.0, 0.0, 0.0),
+                           provenance: dict | None = None) -> None:
+        """Primitive body (M9 T2): mass properties from shape + dimensions.
+        Give density (kg/m^3) or mass (kg) — density derives mass from the
+        volume. dimensions: box={lx, ly, lz}, cylinder={radius, length}
+        (axis along x), point={}."""
+        if shape == "box":
+            lx, ly, lz = (float(dimensions[k]) for k in ("lx", "ly", "lz"))
+            vol = lx * ly * lz
+            m = mass if mass is not None else density * vol
+            I = [[m * (ly**2 + lz**2) / 12, 0, 0],
+                 [0, m * (lx**2 + lz**2) / 12, 0],
+                 [0, 0, m * (lx**2 + ly**2) / 12]]
+        elif shape == "cylinder":
+            r, length = float(dimensions["radius"]), float(dimensions["length"])
+            vol = 3.141592653589793 * r * r * length
+            m = mass if mass is not None else density * vol
+            i_ax = 0.5 * m * r * r
+            i_tr = m * (3 * r * r + length**2) / 12
+            I = [[i_ax, 0, 0], [0, i_tr, 0], [0, 0, i_tr]]
+        elif shape == "point":
+            if mass is None:
+                raise ValueError("point mass needs an explicit mass")
+            m = mass
+            # schema requires a positive-definite tensor; a point's true
+            # inertia is zero, so use a negligible epsilon
+            I = [[1e-12, 0, 0], [0, 1e-12, 0], [0, 0, 1e-12]]
+        else:
+            raise ValueError(f"unknown primitive shape {shape!r}")
+        prov = provenance or {**_PROV,
+                              "reference": f"{shape} primitive, platform builder (M9)"}
+        self.add_body(name, m, com_offset=com_offset, inertia=I, provenance=prov)
+
+    def add_wing_from_outline(self, name: str, side: Literal["left", "right"],
+                              outline, hinge_location=(0.0, 0.0, 0.0),
+                              dihedral_angle: float = 0.0,
+                              pitch_axis_fraction: float = 0.25,
+                              provenance: dict | None = None) -> None:
+        """Wing from a vector-drawn PlanformOutline (M9 T1): compiles to
+        planform 'custom' + planform_stations."""
+        stations = outline.stations()
+        prov = provenance or dict(_PROV)
+        self.add_wing(name, side, span=outline.span,
+                      root_chord=stations[0]["chord"],
+                      tip_chord=stations[-1]["chord"],
+                      hinge_location=hinge_location,
+                      dihedral_angle=dihedral_angle,
+                      pitch_axis_fraction=pitch_axis_fraction,
+                      provenance=prov)
+        self.wings[-1]["planform"] = "custom"
+        self.wings[-1]["planform_stations"] = stations
+
     def add_joint(self, name: str, joint_type: Literal["revolute", "prismatic"],
                   parent: str, child: str, axis, origin=(0.0, 0.0, 0.0),
                   limits=None, provenance: dict | None = None) -> None:

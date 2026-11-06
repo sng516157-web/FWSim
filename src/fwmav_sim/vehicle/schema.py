@@ -154,6 +154,21 @@ class PitchSpringSpec(BaseModel):
                                        # (else from wing mass, DR-006)
 
 
+class PlanformStation(BaseModel):
+    """One spanwise station of a custom wing outline (M9): the vector-drawn
+    planform. y is the span station from the root; le_offset is the leading
+    edge's x position in the wing-root frame (x toward the LE), so sweep is
+    carried here. The pitch axis is the straight x=0 line through the hinge;
+    for an unswept wing with the spar at fraction f of the chord,
+    le_offset(s) = f * chord(s)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    y: float = Field(ge=0.0)  # span station from root, m
+    chord: float = Field(gt=0.0)  # m
+    le_offset: float = 0.0  # m, x_WR of the leading edge at this station
+
+
 class WingSpec(BaseModel):
     """One rigid wing (assumption A-001, A-005)."""
 
@@ -164,7 +179,11 @@ class WingSpec(BaseModel):
     span: Parameter  # single-wing span, m
     root_chord: Parameter  # m
     tip_chord: Parameter  # m
-    planform: Literal["rectangular", "trapezoidal", "elliptical"]
+    planform: Literal["rectangular", "trapezoidal", "elliptical", "custom"]
+    # custom planform (M9): outline as spanwise stations; span must equal the
+    # last station's y, and root/tip chords duplicate the end stations (kept
+    # for backward compatibility of readers that only know the scalar fields)
+    planform_stations: list[PlanformStation] | None = None
     hinge_location: Vector3Parameter  # wing-root origin in the body frame B, m
     # chordwise location of the wing pitch (theta_w) axis: 0 = leading edge,
     # 0.5 = mid-chord (M0->M1 resolution: configurable, reference default 0.0)
@@ -204,6 +223,24 @@ class WingSpec(BaseModel):
         if not 0.0 <= p.value <= 1.0:
             raise ValueError("pitch_axis_fraction must lie in [0, 1]")
         return p
+
+    @model_validator(mode="after")
+    def _custom_planform_consistent(self) -> "WingSpec":
+        if self.planform == "custom":
+            st = self.planform_stations
+            if not st or len(st) < 2:
+                raise ValueError("planform 'custom' requires >= 2 planform_stations")
+            ys = [s.y for s in st]
+            if any(b < a for a, b in zip(ys, ys[1:])):
+                raise ValueError("planform_stations must be ordered root -> tip")
+            if abs(ys[0]) > 1e-12 or abs(ys[-1] - self.span.value) > 1e-9:
+                raise ValueError("planform_stations must span [0, span]")
+            if abs(st[0].chord - self.root_chord.value) > 1e-9 \
+                    or abs(st[-1].chord - self.tip_chord.value) > 1e-9:
+                raise ValueError("planform_stations end chords must equal root/tip_chord")
+        elif self.planform_stations:
+            raise ValueError("planform_stations are only valid with planform 'custom'")
+        return self
 
 
 class BladeElementSpec(BaseModel):

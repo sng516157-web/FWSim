@@ -254,6 +254,24 @@ class Pipeline:
             raw = yaml.safe_load(fh)
         return cls(PipelineDefinition.model_validate(raw).pipeline)
 
+    def set_param(self, block_id: str, name: str, value: float) -> None:
+        """Live tuning write-through (M9 T4): retune a block in a RUNNING
+        pipeline. Loud on unknown block/param — a typo must not silently
+        no-op while the sim runs."""
+        if block_id not in self._steps:
+            raise PipelineError(f"no block {block_id!r} in this pipeline")
+        step = self._steps[block_id]
+        if not hasattr(step, "set_param"):
+            raise PipelineError(
+                f"block {block_id!r} ({self._types[block_id]}) has no live-tunable "
+                "params")
+        step.set_param(name, value)
+
+    def live_params(self) -> dict[str, dict[str, float]]:
+        """All live-tunable params: {block_id: {name: value}}."""
+        return {bid: dict(s.live_params) for bid, s in self._steps.items()
+                if hasattr(s, "live_params")}
+
     def __call__(self, state: np.ndarray, t: float) -> dict[str, Any]:
         values: dict[str, Any] = {}
         for b in self.order:

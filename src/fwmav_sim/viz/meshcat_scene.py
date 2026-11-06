@@ -34,6 +34,7 @@ from fwmav_sim.kinematics.blade_element import (
     chord_at,
     discretize,
     element_state,
+    le_offset_at,
     wing_chain,
 )
 from fwmav_sim.kinematics.prescribed import PrescribedWingKinematics, wing_state
@@ -52,14 +53,15 @@ def _wing_mesh_vertices(wing: WingSpec, edges: np.ndarray) -> np.ndarray:
     +x_WR points toward the leading edge, +y_WR is the span (outboard on the
     wing's own side) for BOTH wings — left/right mirroring lives entirely in
     the frozen R_SP_WR_L chain (frames.md §4), never in the geometry.
-    The pitch axis is at pitch_axis_fraction of the chord from the LE.
+    The leading edge sits at le_offset_at(wing, s): pitch_axis_fraction * c
+    for the analytic planforms, the swept outline for custom ones.
     """
-    x0 = wing.pitch_axis_fraction.value
     verts = []
     for s in edges:
         c = chord_at(wing, s)
-        verts.append([(x0 - 1.0) * c, s, 0.0])  # trailing-edge side
-        verts.append([x0 * c, s, 0.0])  # leading-edge side
+        le = le_offset_at(wing, s)  # = f_pa * c for analytic planforms
+        verts.append([le - c, s, 0.0])  # trailing-edge side
+        verts.append([le, s, 0.0])  # leading-edge side
     return np.asarray(verts)
 
 

@@ -39,8 +39,8 @@ experiment YAML ──load──► dispatch_experiment ──► TimeSeries ─
 | Dynamics | `dynamics/` | mass properties, spatial articulated model, reduced longitudinal model, wing inertia, cycle averaging, aero damping |
 | Experiments | `simulation/` | runners per experiment kind + `run.py` dispatch + records |
 | Analysis | `analysis/` `datasets/` | averaging, sensitivity, compare, sysid, datasets |
-| Interfaces | `control/` `vehicle/urdf_import.py` `vehicle/compact.py` `vehicle/platform_builder.py` | trim/LQR/closed loop, **pipeline executor + block library (M8)**, CAD import, compact authoring, platform builder |
-| Shell | `ui/` (incl. `ui/nodes/`) `viz/` | GUI panels, node canvases, MeshCat scenes — **zero physics** |
+| Interfaces | `control/` `vehicle/urdf_import.py` `vehicle/compact.py` `vehicle/platform_builder.py` | trim/LQR/closed loop, **pipeline executor + block library (M8)**, CAD import, compact authoring, platform builder (M9: primitives + outline wings) |
+| Shell | `ui/` (incl. `ui/workbench.py`, `ui/nodes/`) `viz/` (incl. `gl_scene`, `gl_frames`, `gl_live`) | GUI panels, node canvases, Qt-native GL scene (M9) + MeshCat (legacy) — **zero physics** |
 
 ## Design rules (the three questions, applied)
 

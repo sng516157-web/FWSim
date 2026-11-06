@@ -10,6 +10,12 @@ One self-contained prompt per project stage. Hand Kimi Code the file for the cur
 | [M3_articulated_free_body.md](M3_articulated_free_body.md) | Nonlinear articulated free-body simulation | M2 accepted | 3–4 weeks |
 | [M4_validation_comparison.md](M4_validation_comparison.md) | Validation and experiment comparison | M3 accepted | 1.5–2 weeks |
 | [M5_integrated_workbench.md](M5_integrated_workbench.md) | Integrated workbench (UI) | M4 accepted | 3–4 weeks |
+| [M6_usability_and_physics_fidelity.md](M6_usability_and_physics_fidelity.md) | Usability + physics fidelity (unsteady terms, control loop, sysid, CI) | M5 accepted | — |
+| [M6p5_clarity_pass.md](M6p5_clarity_pass.md) | Clarity pass (examples, compact authoring, GUI basic mode) | M6 accepted | — |
+| [M6p75_unified_base_constraint.md](M6p75_unified_base_constraint.md) | Unified base constraint (fixed/free/release as data) | M6.5 accepted | — |
+| [M7_fidelity_ladder_and_interfaces.md](M7_fidelity_ladder_and_interfaces.md) | Fidelity ladder (UVLM tier, passive pitch) + learning interfaces | M6.75 accepted | — |
+| [M8_node_workbench.md](M8_node_workbench.md) | Node workbench (pipeline executor, block library, node editor, platform builder) | M7 accepted | — |
+| M9 — workbench redesign | Live-first workbench: mechanical tree + control DAG, planform editor, Qt-native GL, live tuning — see `../docs/design/M9_workbench_redesign.md` | M8 accepted | — |
 
 ## Rules of engagement (all stages)
 

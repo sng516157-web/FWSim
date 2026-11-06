@@ -52,26 +52,60 @@ fwmav-sim fit-sysid <fixed_body_exp> <dataset_dir> --columns FX FY FZ -o fit.yam
 ## The GUI
 
 ```bash
-fwmav-sim gui
+fwmav-sim gui            # M9 live-first workbench (default)
+fwmav-sim gui --legacy   # the M5-M8 batch-oriented window
 ```
 
-- **Ribbon (top):** the golden path as five buttons; the current stage
-  highlights.
-- **Left dock:** `inspector` (vehicle tree with provenance badges),
-  `parameters` (edit values — matrices editable, invalid entries flagged
-  red immediately, ↺ resets a field), `records` (every run in `outputs/`;
-  double-click to open, right-click to compare-overlay two runs).
-- **Centre:** `3D` (vehicle/wings/forces; Play/scrub/speed after a run;
-  opens a preview when you load an experiment) and `time series` (the scope:
-  tick channels to overlay, drag the cursor to scrub the 3D frame, toggle
-  the phase average).
-- **Right dock:** experiment picker + run button, and the **validity** panel
-  (assumptions in force, warnings — read before trusting numbers).
-- **Bottom dock:** the **console** — every warning, error and traceback
-  lands here. Nothing fails silently anymore.
+**The M9 workbench** follows the loop *build robot → build controller → run
+live → view + record → tune*:
+
+- **Left dock — library:** the node palette. Mechanical primitives (box /
+  cylinder / point bodies, joints, wings, CAD subtrees) belong to the
+  *platform* tab; control blocks (sensors, estimators, controllers, mixers,
+  actuators, scopes) belong to the *control* tab. Double-click to add.
+- **Centre tabs:**
+  - *platform* — the mechanical tree plus the **wing planform editor**
+    (drag the leading/trailing edge points; area, MAC and the blade-element
+    discretization derive live from the outline).
+  - *control* — the signal DAG canvas. Drag from a blue output port to an
+    orange input port; connections are type-checked on release and invalid
+    ones are rejected with the reason.
+  - *3D live* — the Qt-native OpenGL scene (orbit: drag; zoom: wheel).
+  - *scopes* — time series with cursor scrubbing.
+- **Transport bar (bottom):** ▶ play runs the sim *live* (speed selector),
+  ⏹ stop saves a run record identical in schema to a batch run (recording
+  is on by default — ● toggles it).
+- **Right dock — dashboard:** sliders for the live-tunable parameters of
+  the running controller (PID gains, mixer limits). Moving a slider retunes
+  the *running* simulation — this is how you tune a controller while it
+  flies.
+
+**The legacy window** (`--legacy`) keeps the batch workflow: ribbon,
+inspector, parameter editor, records browser, validity panel, console.
+
+### Building a platform from primitives (no CAD needed)
+
+```python
+from fwmav_sim.vehicle.platform_builder import PlatformBuilder
+from fwmav_sim.ui.nodes.planform_canvas import PlanformOutline
+
+pb = PlatformBuilder("my_mav")
+pb.add_body_primitive("thorax", "box", {"lx": 0.04, "ly": 0.02, "lz": 0.02},
+                      density=500.0)              # mass + inertia derived
+outline = PlanformOutline()                       # or draw it in the GUI
+outline.insert_station(0.15)                      # add a mid-span station
+outline.move_point("te", 1, 0.02, 0.15)           # taper the tip
+pb.add_wing_from_outline("wing_right", "right", outline,
+                         hinge_location=[0.0, 0.01, -0.005])
+pb.add_wing_from_outline("wing_left", "left", outline,
+                         hinge_location=[0.0, -0.01, -0.005])
+pb.save_vehicle("reference_vehicles/my_mav.yaml")  # validated before writing
+```
+
+From CAD instead: `PlatformBuilder.from_urdf("robot.urdf")` imports bodies +
+joints (revolute/fixed, coordinate-axis-aligned); add wings by hand as above.
 
 ### Interpreting the experiment kinds
-
 | Kind | Analogy | Body moves? |
 |---|---|---|
 | `fixed_body` | force-balance rig | no (clamped) |

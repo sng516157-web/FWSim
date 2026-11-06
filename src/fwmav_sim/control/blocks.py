@@ -154,28 +154,42 @@ def make_controller_pid(params):
     """PID on a scalar error -> one of the 4 channels (default: thrust).
 
     params: state_idx, setpoint, kp, ki, kd, channel (0..3), i_limit
+    Gains are read live each call — set_param() retunes a RUNNING pipeline
+    (M9 T4 dashboard write-through).
     """
     idx = int(params["state_idx"])
-    sp = float(params.get("setpoint", 0.0))
-    kp, ki, kd = (float(params.get(k, 0.0)) for k in ("kp", "ki", "kd"))
     chan = int(params.get("channel", 0))
-    i_lim = float(params.get("i_limit", 1e6))
+    live = {  # mutable: the dashboard writes here
+        "setpoint": float(params.get("setpoint", 0.0)),
+        "kp": float(params.get("kp", 0.0)),
+        "ki": float(params.get("ki", 0.0)),
+        "kd": float(params.get("kd", 0.0)),
+        "i_limit": float(params.get("i_limit", 1e6)),
+    }
     mem = {"i": 0.0, "prev_e": None, "t": None}
 
     def step(inputs, state, t):
-        e = sp - float(state[idx])
+        e = live["setpoint"] - float(state[idx])
         if mem["t"] is None:
             dt, de = 0.0, 0.0
         else:
             dt = max(t - mem["t"], 1e-9)
             de = (e - mem["prev_e"]) / dt
-        mem["i"] = np.clip(mem["i"] + e * dt, -i_lim, i_lim)
+        mem["i"] = np.clip(mem["i"] + e * dt, -live["i_limit"], live["i_limit"])
         mem["prev_e"], mem["t"] = e, t
-        u = kp * e + ki * mem["i"] + kd * de
+        u = live["kp"] * e + live["ki"] * mem["i"] + live["kd"] * de
         out = np.zeros(4)
         out[chan] = u
         return {"channels": out}
 
+    def set_param(name, value):
+        if name not in live:
+            raise KeyError(f"controller_pid has no live param {name!r} "
+                           f"(have: {sorted(live)})")
+        live[name] = float(value)
+
+    step.set_param = set_param
+    step.live_params = live
     return step
 
 
@@ -223,12 +237,21 @@ def make_summer_channels(params):
 def make_mixer_wingbeat_channels(params):
     """Channel pass-through with saturation — the ChannelCommand contract
     (control/channels.py). Exists as a block so the DAG has an explicit
-    mixer stage (flappy's wing-beat-modulation convention)."""
-    lim = float(params.get("limit", 0.5))
+    mixer stage (flappy's wing-beat-modulation convention). The limit is
+    live-tunable (M9 T4)."""
+    live = {"limit": float(params.get("limit", 0.5))}
 
     def step(inputs, state, t):
+        lim = live["limit"]
         return {"channels": np.clip(np.asarray(inputs["channels"], float), -lim, lim)}
 
+    def set_param(name, value):
+        if name != "limit":
+            raise KeyError(f"mixer has no live param {name!r} (have: ['limit'])")
+        live["limit"] = float(value)
+
+    step.set_param = set_param
+    step.live_params = live
     return step
 
 

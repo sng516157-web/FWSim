@@ -11,7 +11,7 @@ import os
 import sys
 
 
-def main() -> int:
+def main(legacy: bool = False) -> int:
     try:
         from PySide6.QtWidgets import QApplication
     except ImportError:
@@ -31,8 +31,13 @@ def main() -> int:
     app = QApplication(sys.argv[:1])
     app.setApplicationName("FWSim — FWMAV Workbench")
 
-    from fwmav_sim.ui.main_window import MainWindow
+    if legacy:
+        from fwmav_sim.ui.main_window import MainWindow
 
-    win = MainWindow()
+        win = MainWindow()
+    else:
+        from fwmav_sim.ui.workbench import WorkbenchWindow
+
+        win = WorkbenchWindow()
     win.show()
     return app.exec()
