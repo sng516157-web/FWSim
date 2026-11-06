@@ -50,8 +50,14 @@ def _run_fixed_body(exp, experiment_path):
     env = environment_from_spec(exp.environment)
     model = QuasiSteadyBladeElement(vehicle.aero)
     from fwmav_sim.experiment.config import kinematics_map
-    ts = run_fixed_body(vehicle, kinematics_map(exp, vehicle), env, model,
-                        exp.n_wingbeats, exp.steps_per_wingbeat)
+    if exp.passive_pitch:
+        from fwmav_sim.dynamics.wing_pitch_compliance import run_fixed_body_passive_pitch
+
+        ts = run_fixed_body_passive_pitch(vehicle, kinematics_map(exp, vehicle), env,
+                                          model, exp.n_wingbeats, exp.steps_per_wingbeat)
+    else:
+        ts = run_fixed_body(vehicle, kinematics_map(exp, vehicle), env, model,
+                            exp.n_wingbeats, exp.steps_per_wingbeat)
     re_range = {w.name: {"min": float(ts[f"{w.name}/reynolds"].min()),
                          "max": float(ts[f"{w.name}/reynolds"].max())}
                 for w in vehicle.wings}
@@ -61,11 +67,16 @@ def _run_fixed_body(exp, experiment_path):
         if model.set_info else
         "aero coefficients: inline from the vehicle YAML (Dickinson 1999 Robofly "
         "fits unless edited); validity for this vehicle unverified without data.")
+    # fidelity ladder (M7 Task 5): the aero tier is first-class metadata
+    tier = "quasi_steady+unsteady_terms" if vehicle.aero.unsteady else "quasi_steady"
+    if exp.passive_pitch:
+        tier += "+passive_pitch"
     extra_meta = {
         "experiment_file": str(experiment_path),
         "vehicle_file": str(vehicle_path),
         "reynolds_range": re_range,
         "validity": {
+            "fidelity_tier": tier,
             "assumption_ids": ts.meta["assumptions"],
             "aero_coefficients": ({"set": vehicle.aero.coefficient_set,
                                    "regime": model.set_info["regime"],
@@ -78,6 +89,9 @@ def _run_fixed_body(exp, experiment_path):
                  + " — estimated gains, not validated (A-002 relaxed)."
                  if vehicle.aero.unsteady else
                  "Wake capture, clap-and-fling and wing deformation are excluded (A-002, A-005)."),
+                *(["Passive torsional pitch active (M7): prescribed pitch ignored "
+                   "for sprung wings; spring constants estimated"] if exp.passive_pitch
+                  else []),
             ],
         },
     }

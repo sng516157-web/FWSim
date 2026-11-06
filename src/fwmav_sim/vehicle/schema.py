@@ -139,6 +139,21 @@ class JointSpec(BaseModel):
         return lim
 
 
+class PitchSpringSpec(BaseModel):
+    """Passive torsional wing pitch (M7 Task 3): a spring-damper about the
+    spanwise pitch axis. When present AND the experiment enables
+    passive_pitch, the wing's pitch evolves under aero moment + spring +
+    damper instead of following the prescribed pitch profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stiffness: Parameter  # k_p, N m / rad
+    damping: Parameter  # c_p, N m s / rad
+    rest_angle: Parameter  # psi_rest, rad
+    inertia: Parameter | None = None  # I_p about the pitch axis, kg m^2
+                                       # (else from wing mass, DR-006)
+
+
 class WingSpec(BaseModel):
     """One rigid wing (assumption A-001, A-005)."""
 
@@ -166,6 +181,8 @@ class WingSpec(BaseModel):
     # (M1-M5 default). When set, mass properties derive from the planform as a
     # uniform-areal-density thin plate (dynamics/wing_inertia.py).
     mass: Parameter | None = None  # kg
+    # passive torsional pitch spring (M7 Task 3); None = prescribed pitch
+    pitch_spring: PitchSpringSpec | None = None
 
     @field_validator("mass")
     @classmethod

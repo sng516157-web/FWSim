@@ -36,11 +36,11 @@ class PitchSpring:
         ps = wing.pitch_spring
         if ps is None:
             raise ValueError(f"wing {wing.name!r} has no pitch_spring block")
-        self.k = ps["stiffness"].value  # N m / rad
-        self.c = ps["damping"].value  # N m s / rad
-        self.rest = ps["rest_angle"].value  # rad
-        if "inertia" in ps:
-            self.I = ps["inertia"].value
+        self.k = ps.stiffness.value  # N m / rad
+        self.c = ps.damping.value  # N m s / rad
+        self.rest = ps.rest_angle.value  # rad
+        if ps.inertia is not None:
+            self.I = ps.inertia.value
         else:
             props = wing_mass_properties(wing)
             if props is None:
@@ -91,3 +91,110 @@ def aero_pitch_moment(wing, elements, kin, t, env, model, pitch_angle: float,
     # moment about the spanwise (y_WR) axis at the pitch axis:
     # M_y = sum(x_c * F_z_WR - (z_el - 0) * F_x_WR); wings are flat (z_el = 0)
     return float(np.sum(x_c * F_WR[:, 2]))
+
+
+def run_fixed_body_passive_pitch(vehicle, kinematics, env, model,
+                                 n_wingbeats: int, steps_per_wingbeat: int):
+    """Fixed-body run with passive torsional pitch (M7 Task 3).
+
+    The runner becomes an ODE solve: per-wing state [psi, psi_dot] evolves as
+    I_p psi_ddot = M_aero(t, psi) - c psi_dot - k (psi - psi_rest); the force
+    channels are evaluated at the evolved pitch. Prescribed pitch is ignored
+    for sprung wings (a validity warning is recorded).
+    """
+    from scipy.linalg import expm
+
+    from fwmav_sim.core.timeseries import TimeSeries
+
+    kin_map = (kinematics if isinstance(kinematics, dict)
+               else {w.name: kinematics for w in vehicle.wings})
+    sprung = {w.name: PitchSpring(w) for w in vehicle.wings
+              if w.pitch_spring is not None}
+    if not sprung:
+        raise ValueError("passive_pitch enabled but no wing has a pitch_spring block")
+    elements = {w.name: discretize(w, vehicle.blade_elements.n_elements,
+                                   vehicle.blade_elements.discretization)
+                for w in vehicle.wings}
+    f = next(iter(kin_map.values())).flap_frequency.value
+    period = 1.0 / f
+    names = list(sprung)
+    wing_by_name = {w.name: w for w in vehicle.wings}
+    t_eval = np.arange(n_wingbeats * steps_per_wingbeat) * (period / steps_per_wingbeat)
+    dt = period / steps_per_wingbeat
+
+    def spring_step(ps, M0, dM, psi, psi_dot, h):
+        """Semi-implicit exact update of the pitch oscillator over h.
+
+        The aero moment is linearized, M(psi) ~ M0 + dM (psi - psi_n), and the
+        resulting linear system  I psi_ddot = M0 + dM (psi - psi_n)
+            - c psi_dot - k (psi - rest)
+        is integrated exactly via 2x2 matrix exponential. Treating the aero
+        stiffness dM implicitly is what keeps the stiff-spring regime stable
+        at wingbeat-rate step sizes (explicit M-freezing diverges when
+        |dM| >> k, which is the norm here: dM ~ -0.15 N m/rad).
+        Cost: 2 aero evaluations per step (M0 and the finite-difference probe).
+        """
+        K = ps.k - dM  # total effective stiffness (aero slope is restorative)
+        if abs(K) < 1e-30:
+            K = 1e-30
+        # equilibrium of the linearized system:
+        # K psi* = M0 - dM psi_n + k rest
+        psi_eq = (M0 - dM * psi + ps.k * ps.rest) / K
+        A = np.array([[0.0, 1.0], [-K / ps.I, -ps.c / ps.I]])
+        x = expm(A * h) @ np.array([psi - psi_eq, psi_dot])
+        return psi_eq + x[0], x[1]
+
+    dpsi_fd = 1e-4  # finite-difference probe for the aero stiffness
+    state = {n: [sprung[n].rest, 0.0] for n in names}
+    psi_hist = {n: np.zeros(len(t_eval)) for n in names}
+    psi_dot_hist = {n: np.zeros(len(t_eval)) for n in names}
+    for i, ti in enumerate(t_eval):
+        for n in names:
+            psi, psi_dot = state[n]
+            w, els, kin = wing_by_name[n], elements[n], kin_map[n]
+            M0 = aero_pitch_moment(w, els, kin, ti, env, model, psi, psi_dot)
+            M1 = aero_pitch_moment(w, els, kin, ti, env, model,
+                                   psi + dpsi_fd, psi_dot)
+            psi, psi_dot = spring_step(sprung[n], M0, (M1 - M0) / dpsi_fd,
+                                       psi, psi_dot, dt)
+            state[n] = [psi, psi_dot]
+            psi_hist[n][i] = psi
+            psi_dot_hist[n][i] = psi_dot
+
+    # force channels at the evolved pitch
+    channels: dict[str, np.ndarray] = {}
+    for name in names:
+        channels[f"{name}/psi_passive"] = psi_hist[name]
+        channels[f"{name}/psi_dot_passive"] = psi_dot_hist[name]
+    for w in vehicle.wings:
+        m = len(elements[w.name])
+        for key, shape in {"F_total": (len(t_eval), 3), "M_total": (len(t_eval), 3),
+                           "P_aero": (len(t_eval),),
+                           "alpha": (len(t_eval), m),
+                           "reynolds": (len(t_eval), m)}.items():
+            channels[f"{w.name}/{key}"] = np.zeros(shape)
+        for i, ti in enumerate(t_eval):
+            kin_eff = kin_map[w.name]
+            if w.name in sprung:
+                import copy
+
+                kin_eff = copy.deepcopy(kin_map[w.name])
+                kin_eff.pitch_offset.value = float(psi_hist[w.name][i])
+                kin_eff.pitch_amplitude.value = 0.0
+            st = batched_element_state(w, elements[w.name], kin_eff, ti, nu=env.nu,
+                                       v_air_W=env.v_air_W)
+            bf = model.element_forces_batch(st, env)
+            F_el = bf["F_trans"] + bf["F_rot"] + bf["F_am"]
+            channels[f"{w.name}/F_total"][i] = F_el.sum(axis=0)
+            channels[f"{w.name}/M_total"][i] = np.cross(st["r_W"], F_el).sum(axis=0)
+            channels[f"{w.name}/P_aero"][i] = -float((F_el * st["v_W"]).sum())
+            channels[f"{w.name}/alpha"][i] = st["alpha"]
+            channels[f"{w.name}/reynolds"][i] = st["reynolds"]
+
+    meta = {"kind": "fixed_body", "passive_pitch": True,
+            "n_wingbeats": n_wingbeats, "steps_per_wingbeat": steps_per_wingbeat,
+            "flap_frequency_hz": f, "wingbeat_period_s": period,
+            "vehicle": vehicle.name, "aero_model": type(model).__name__,
+            "assumptions": ["A-001", "A-002", "A-003", "A-004", "A-005", "A-006"],
+            "sprung_wings": names}
+    return TimeSeries(t=t_eval, channels=channels, meta=meta)

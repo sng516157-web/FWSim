@@ -174,6 +174,9 @@ class ExperimentDefinition(BaseModel):
     environment: EnvironmentSpec | None = None
     n_wingbeats: int | None = Field(default=None, gt=0)
     steps_per_wingbeat: int | None = Field(default=None, gt=0)
+    # passive torsional pitch (M7 Task 3): wings with a pitch_spring block
+    # evolve pitch dynamically instead of following the prescribed profile
+    passive_pitch: bool = False
 
     # dynamic kinds
     suspension: SuspensionSpec | None = None

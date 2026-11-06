@@ -1,0 +1,95 @@
+# AirPulse with passive torsional wing pitch (M7 Task 3 example).
+# Same airframe as airpulse.yaml, but each wing carries a torsional
+# spring-damper about the pitch axis — the real robot's passive feathering
+# mechanism — instead of relying on a prescribed pitch profile.
+#
+# Spring constants are ESTIMATED (no published values): k=0.5 N m/rad is
+# above the measured quasi-steady aero pitch stiffness (~0.15 N m/rad on
+# this airframe), so the wing settles to a bounded ~10 mrad response instead
+# of diverging torsionally (see tests/unit/test_passive_pitch.py).
+name: airpulse_passive_pitch
+data_status: estimated
+
+bodies:
+  - name: body
+    mass:
+      value: 0.0257
+      unit: kg
+      provenance:
+        source: literature
+        reference: "Gu et al. 2026 (arXiv:2602.06811), Table A1 (flap 0 deg)"
+        uncertainty_or_range: "characterized config; flight-ready 26 g"
+    com_offset:
+      value: [0.0, 0.0, 0.0]
+      unit: m
+      provenance:
+        source: literature
+        reference: "B origin placed at the neutral-stroke CG (Table A1, flap 0)"
+    inertia:
+      value: [[1.6230e-4, -5.42e-7, 1.1341e-6],
+              [-5.42e-7, 5.0337e-5, 3.010e-6],
+              [1.1341e-6, 3.010e-6, 2.1043e-4]]
+      unit: kg m^2
+      provenance:
+        source: literature
+        reference: "Gu et al. 2026 (arXiv:2602.06811), Table A1, flap angle 0"
+
+joints: []
+
+wings:
+  - name: wing_right
+    side: right
+    span: {value: 0.30, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 (60 cm wingspan)"}}
+    root_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 mean aerodynamic chord"}}
+    tip_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811 mean aerodynamic chord"}}
+    planform: rectangular
+    hinge_location:
+      value: [0.0, 0.01, -0.008]
+      unit: m
+      provenance: {source: estimated, uncertainty_or_range: "estimated near the CG-height fuselage side"}
+    pitch_axis_fraction: {value: 0.0, unit: "1", provenance: {source: estimated, uncertainty_or_range: "leading-edge spar"}}
+    dihedral_angle:
+      value: 0.8727
+      unit: rad
+      provenance: {source: literature, reference: "arXiv:2602.06811 (fixed 50 deg V-dihedral)"}
+    pitch_spring:
+      stiffness: {value: 0.5, unit: "N m / rad", provenance: {source: estimated, uncertainty_or_range: "no published value; sized above the aero pitch stiffness (~0.15 N m/rad) for a bounded response"}}
+      damping: {value: 1.0e-3, unit: "N m s / rad", provenance: {source: estimated, uncertainty_or_range: "no published value"}}
+      rest_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "membrane assumed flat at rest"}}
+      inertia: {value: 1.0e-6, unit: "kg m^2", provenance: {source: estimated, uncertainty_or_range: "thin-membrane estimate about the leading-edge spar"}}
+  - name: wing_left
+    side: left
+    span: {value: 0.30, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    root_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    tip_chord: {value: 0.183, unit: m, provenance: {source: literature, reference: "arXiv:2602.06811"}}
+    planform: rectangular
+    hinge_location:
+      value: [0.0, -0.01, -0.008]
+      unit: m
+      provenance: {source: estimated, uncertainty_or_range: "mirrored hinge; estimated"}
+    pitch_axis_fraction: {value: 0.0, unit: "1", provenance: {source: estimated, uncertainty_or_range: "leading-edge spar"}}
+    dihedral_angle:
+      value: 0.8727
+      unit: rad
+      provenance: {source: literature, reference: "arXiv:2602.06811 (fixed 50 deg V-dihedral)"}
+    pitch_spring:
+      stiffness: {value: 0.5, unit: "N m / rad", provenance: {source: estimated, uncertainty_or_range: "no published value; sized above the aero pitch stiffness (~0.15 N m/rad) for a bounded response"}}
+      damping: {value: 1.0e-3, unit: "N m s / rad", provenance: {source: estimated, uncertainty_or_range: "no published value"}}
+      rest_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "membrane assumed flat at rest"}}
+      inertia: {value: 1.0e-6, unit: "kg m^2", provenance: {source: estimated, uncertainty_or_range: "thin-membrane estimate about the leading-edge spar"}}
+
+blade_elements:
+  n_elements: 16
+  discretization: equal_span
+
+aero:
+  name: quasi_steady_blade_element
+  coefficients:
+    cl_0:          {value: 0.225, unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "Robofly Re ~ O(100); AirPulse Re ~ 3e4: extrapolation, unverified"}}
+    cl_slope:      {value: 1.58,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cl_freq:       {value: 2.13,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cl_phase_deg:  {value: 7.20,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999"}}
+    cd_0:          {value: 1.92,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_slope:      {value: 1.55,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_freq:       {value: 2.04,  unit: "1", provenance: {source: literature, reference: "Dickinson et al. 1999", valid_regime: "as above"}}
+    cd_phase_deg:  {value: 9.82,  unit: deg, provenance: {source: literature, reference: "Dickinson et al. 1999"}}
