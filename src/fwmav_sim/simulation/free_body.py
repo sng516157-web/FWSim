@@ -129,6 +129,15 @@ class FreeBodyPlant:
         # extra plant states: profile limiter [alpha_lim, alpha_dot_lim]
         self.n_extra = 2 if self.control.mode == "profile_limited" else 0
         self.ny = 7 + self.nj + 6 + self.nj + self.n_extra
+        # pipeline control hook (M8): a compiled control/pipeline.py Pipeline
+        # evaluated at wingbeat boundaries (A-007). The mixer's deltas apply
+        # from the BASELINE kinematics (captured here) so commands do not
+        # accumulate across beats.
+        self.pipeline = None  # set by run.py when the experiment declares one
+        self._baseline_kinematics = None
+        self._last_beat = -1
+        self.last_channels = np.zeros(4)
+        self.channel_history: list[tuple[float, np.ndarray]] = []
         # recorded per-call diagnostics (sampled by the runner)
         self.last_reaction = np.zeros(self.nj)
         self.last_alpha_cmd = 0.0
@@ -138,6 +147,44 @@ class FreeBodyPlant:
         self.last_F_wing_inertia: dict[str, np.ndarray] = {}
         self.last_F_abdomen_aero: np.ndarray | None = None
         self.last_abdomen_alpha: float = 0.0
+
+    def attach_pipeline(self, pipeline, mixer) -> None:
+        """Attach a compiled control pipeline + ChannelMixer (M8).
+
+        The pipeline is evaluated once per wingbeat (control at wingbeat
+        scale, A-007); its 4-channel output drives the mixer, which produces
+        per-wing kinematics deltas from the baseline."""
+        import copy
+
+        self.pipeline = pipeline
+        self._mixer = mixer
+        self._baseline_kinematics = copy.deepcopy(self.kinematics_map)
+        self._last_beat = -1
+
+    def _update_control(self, t: float, y: np.ndarray) -> None:
+        if self.pipeline is None:
+            return
+        f = self.kinematics.flap_frequency.value
+        beat = int(np.floor(t * f))
+        if beat == self._last_beat:
+            return
+        self._last_beat = beat
+        from fwmav_sim.control.channels import ChannelCommand
+
+        out = self.pipeline(y, t)
+        # the mixer's own output if wired, else any terminal channels output
+        ch = None
+        for blk in out["commands"].values():
+            if "channels" in blk:
+                ch = blk["channels"]
+        if ch is None:
+            return
+        ch = np.asarray(ch, float)
+        self.last_channels = ch
+        self.channel_history.append((t, ch.copy()))
+        cmd = ChannelCommand(thrust=float(ch[0]), roll=float(ch[1]),
+                             pitch=float(ch[2]), yaw=float(ch[3]))
+        self.kinematics_map = self._mixer.apply(self._baseline_kinematics, cmd)
 
     # --- force assembly -----------------------------------------------------
 
@@ -211,6 +258,7 @@ class FreeBodyPlant:
     # --- plant rhs ------------------------------------------------------------
 
     def rhs(self, t: float, y: np.ndarray) -> np.ndarray:
+        self._update_control(t, y)  # M8 pipeline hook (no-op when unattached)
         nj = self.nj
         p, quat, qj = y[:3], y[3:7], y[7:7 + nj]
         v_W = y[7 + nj:10 + nj]

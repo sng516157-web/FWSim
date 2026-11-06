@@ -1,0 +1,68 @@
+# M8 demo pipeline: IMU + mocap -> complementary estimator -> PID attitude +
+# PID altitude -> wingbeat channel mixer. The controllers see the ESTIMATED
+# state (S3 contract), not the plant truth. State layout: free-body plant
+# with nj=2 -> [p(3), quat(4), qj(2), v_W(3), omega_B(3), qdj(2)] (17).
+pipeline:
+  - id: imu
+    type: sensor_imu
+    params:
+      gyro_idx: [12, 13, 14]   # omega_B (nj=2 offset)
+      vel_idx: [9, 10, 11]      # v_W
+      gyro_noise_std: 1.0e-3
+      accel_noise_std: 1.0e-2
+      seed: 7
+  - id: mocap
+    type: sensor_mocap
+    params:
+      pos_idx: [0, 1, 2]
+      quat_idx: [3, 4, 5, 6]
+      pos_noise_std: 1.0e-4
+      att_noise_std: 1.0e-3
+      rate_hz: 200
+      seed: 11
+  - id: est
+    type: estimator_complementary
+    params:
+      attitude_trust: 0.98
+      vel_alpha: 0.7
+      state_dim: 17
+      state_layout: {p: [0, 1, 2], quat: [3, 4, 5, 6], v: [9, 10, 11], omega: [12, 13, 14]}
+    inputs:
+      - {port: imu, from: imu.measurement}
+      - {port: mocap, from: mocap.measurement}
+  - id: altitude_pid
+    type: controller_pid
+    params:
+      state_idx: 2          # z (NED: down positive) — hover at z=0
+      setpoint: 0.0
+      # NED sign: descending -> z > 0 -> MORE thrust needed, so the loop
+      # gain on e = sp - z must be negative (u = -|kp| e = +|kp| z)
+      kp: -0.05
+      ki: -0.02
+      kd: -0.08
+      channel: 0            # thrust
+      i_limit: 0.3
+    inputs:
+      - {port: state, from: est.state}
+  - id: pitch_pid
+    type: controller_pid
+    params:
+      state_idx: 4          # quat y-component ~ theta/2 for small angles
+      setpoint: 0.0
+      kp: 0.02
+      ki: 0.0
+      kd: 0.05
+      channel: 2            # pitch
+      i_limit: 0.1
+    inputs:
+      - {port: state, from: est.state}
+  - id: sum
+    type: summer_channels
+    inputs:
+      - {port: channels_a, from: altitude_pid.channels}
+      - {port: channels_b, from: pitch_pid.channels}
+  - id: mix
+    type: mixer_wingbeat_channels
+    params: {limit: 0.3}
+    inputs:
+      - {port: channels, from: sum.channels}

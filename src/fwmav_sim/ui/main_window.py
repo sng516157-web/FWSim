@@ -61,6 +61,16 @@ class MainWindow(QMainWindow if _HAVE_QT else object):
         centre = QTabWidget()
         centre.addTab(self.scene3d, "3D")
         centre.addTab(self.timeseries, "time series")
+        # M8 Task 2: node workbench — pipeline DAG canvas + platform tree
+        from fwmav_sim.ui.nodes.pipeline_canvas import PipelineEditorWidget
+        from fwmav_sim.ui.nodes.platform_tree import PlatformTreeWidget
+
+        self.pipeline_editor = PipelineEditorWidget()
+        self.platform_tree = PlatformTreeWidget()
+        nodes = QTabWidget()
+        nodes.addTab(self.pipeline_editor, "control pipeline")
+        nodes.addTab(self.platform_tree, "platform tree")
+        centre.addTab(nodes, "nodes")
         self.setCentralWidget(centre)
         # scope cursor scrubs the 3D frame (M6 Task 3)
         self.timeseries.cursor_moved.connect(self.scene3d.seek_time)

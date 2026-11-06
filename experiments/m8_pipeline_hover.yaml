@@ -1,0 +1,37 @@
+# M8 Task 4 demo: pipeline-driven hover on the Level-2 free-body plant.
+# IMU + mocap -> complementary estimator -> PID altitude + PID attitude ->
+# wingbeat channel mixer -> plant. The controllers see the ESTIMATED state
+# (S3), not the truth. Compare with m3_free_body_hover (open loop) and the
+# M6 truth-state closed loop (Level-1 reduced model).
+name: m8_pipeline_hover
+kind: free_body
+vehicle: ../reference_vehicles/bio_abdomen_fwmav.yaml
+pipeline: m8_hover_pipeline.yaml
+
+kinematics:
+  flap_amplitude: {value: 1.0472, unit: rad, provenance: {source: estimated, uncertainty_or_range: "60 deg placeholder"}}
+  flap_frequency: {value: 15.0, unit: Hz, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  pitch_amplitude: {value: 0.7854, unit: rad, provenance: {source: estimated, uncertainty_or_range: "45 deg placeholder"}}
+  pitch_phase: {value: 3.14159, unit: rad, provenance: {source: estimated, uncertainty_or_range: "180 deg phasing"}}
+  pitch_offset: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "placeholder"}}
+  stroke_plane_angle: {value: 0.0, unit: rad, provenance: {source: estimated, uncertainty_or_range: "horizontal stroke plane placeholder"}}
+
+environment:
+  air_density: {value: 1.225, unit: kg/m^3, provenance: {source: literature, reference: "ISA sea level"}}
+  kinematic_viscosity: {value: 1.460e-5, unit: m^2/s, provenance: {source: literature, reference: "ISA sea level"}}
+  wind: {value: [0.0, 0.0, 0.0], unit: m/s, provenance: {source: estimated, uncertainty_or_range: "still air"}}
+
+abdomen:
+  mode: locked
+
+initial_state_free:
+  position: [0.0, 0.0, 0.0]
+  euler: [0.0, 0.05, 0.0]   # small pitch perturbation
+  joint_angles: [0.0, 0.0]
+
+solver:
+  integrator: DOP853
+  rtol: 1.0e-8
+  atol: 1.0e-10
+  steps_per_wingbeat: 100
+  max_time: 1.0   # 15 wingbeats

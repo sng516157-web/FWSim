@@ -77,6 +77,11 @@ BLOCK_REGISTRY: dict[str, BlockSpec] = {
         inputs={"state": Port(signal="state")},
         outputs={"channels": Port(signal="channels", shape=4)},
     ),
+    "summer_channels": BlockSpec(
+        inputs={"channels_a": Port(signal="channels", shape=4),
+                "channels_b": Port(signal="channels", shape=4)},
+        outputs={"channels": Port(signal="channels", shape=4)},
+    ),
     "mixer_wingbeat_channels": BlockSpec(
         inputs={"channels": Port(signal="channels", shape=4)},
         outputs={"channels": Port(signal="channels", shape=4)},

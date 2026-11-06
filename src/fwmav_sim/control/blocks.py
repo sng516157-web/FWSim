@@ -210,6 +210,16 @@ def make_controller_lqr(params):
 # ---------------------------------------------------------------------------
 
 
+def make_summer_channels(params):
+    """Elementwise sum of two channel vectors (e.g. altitude PID + attitude
+    PID before the mixer)."""
+    def step(inputs, state, t):
+        return {"channels": np.asarray(inputs["channels_a"], float)
+                + np.asarray(inputs["channels_b"], float)}
+
+    return step
+
+
 def make_mixer_wingbeat_channels(params):
     """Channel pass-through with saturation — the ChannelCommand contract
     (control/channels.py). Exists as a block so the DAG has an explicit

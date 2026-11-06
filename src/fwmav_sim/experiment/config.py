@@ -190,6 +190,9 @@ class ExperimentDefinition(BaseModel):
     closed_loop: ClosedLoopSpec | None = None
     base: BaseConstraintSpec | None = None  # DR-007: constraint as data
     solver: SolverSpec | None = None
+    # M8: control pipeline YAML (sensor -> estimator -> controller -> mixer
+    # DAG), path relative to the experiment file. Free-body only for now.
+    pipeline: str | None = None
 
 
 def effective_base(exp: ExperimentDefinition) -> tuple[str, list[str]]:

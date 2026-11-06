@@ -105,6 +105,20 @@ def run_free_body(
     channels["actuator_saturated"] = sat
     channels["reaction_torques"] = reaction
     channels["com_W"] = com
+    if plant.pipeline is not None:
+        # M8: channel command history recorded by _update_control during the
+        # run (replaying the pipeline here would corrupt stateful blocks —
+        # PID integrators, estimator memory). Piecewise-constant per beat.
+        hist = plant.channel_history  # list of (t, 4-vector)
+        ch = np.zeros((n, 4))
+        j = 0
+        cur = np.zeros(4)
+        for i in range(n):
+            while j < len(hist) and hist[j][0] <= t[i] + 1e-12:
+                cur = hist[j][1]
+                j += 1
+            ch[i] = cur
+        channels["control_channels"] = ch
     for w in wings:
         channels[f"{w}/F_aero_total"] = F_terms[w]
         channels[f"{w}/lever_arm"] = lever[w]

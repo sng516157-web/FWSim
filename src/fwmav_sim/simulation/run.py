@@ -214,6 +214,14 @@ def build_free_body_plant(exp, experiment_path):
                           control=control, isolation=isolation,
                           base_mode=base_mode, release_time=release_time)
 
+    # M8: control pipeline (sensor -> estimator -> controller -> mixer DAG)
+    if exp.pipeline:
+        from fwmav_sim.control.channels import ChannelMixer
+        from fwmav_sim.control.pipeline import Pipeline
+
+        pipeline = Pipeline.from_yaml(experiment_path.parent / exp.pipeline)
+        plant.attach_pipeline(pipeline, ChannelMixer([w.name for w in vehicle.wings]))
+
     init = exp.initial_state_free
     joint_angles = (init.joint_angles if init and init.joint_angles
                     else [0.0] * plant.nj)
